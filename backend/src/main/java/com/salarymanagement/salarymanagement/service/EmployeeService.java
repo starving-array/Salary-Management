@@ -1,6 +1,7 @@
 package com.salarymanagement.salarymanagement.service;
 
 import com.salarymanagement.salarymanagement.dto.request.CreateEmployeeRequest;
+import com.salarymanagement.salarymanagement.dto.request.UpdateEmployeeRequest;
 import com.salarymanagement.salarymanagement.dto.response.EmployeeResponse;
 import com.salarymanagement.salarymanagement.entity.Country;
 import com.salarymanagement.salarymanagement.entity.Employee;
@@ -13,6 +14,7 @@ import com.salarymanagement.salarymanagement.repository.EmployeeRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.UUID;
 
 @Service
@@ -61,5 +63,53 @@ public class EmployeeService {
                 .filter(e -> e.getDeletedAt() == null)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id: " + id));
         return employeeMapper.toResponse(employee);
+    }
+
+    @Transactional
+    public EmployeeResponse updateEmployee(UUID id, UpdateEmployeeRequest request) {
+        if (id == null) {
+            throw new ResourceNotFoundException("Employee id must not be null");
+        }
+
+        Employee employee = employeeRepository.findById(id)
+                .filter(e -> e.getDeletedAt() == null)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id: " + id));
+
+        if (request.getTerminatedAt() != null && request.getTerminatedAt().isBefore(employee.getJoinedAt())) {
+            throw new IllegalArgumentException("Termination date cannot be before joining date");
+        }
+
+        if (request.getCountryCode() != null && !request.getCountryCode().isBlank()) {
+            if (!countryRepository.existsById(request.getCountryCode())) {
+                throw new CountryNotFoundException("Country not found with code: " + request.getCountryCode());
+            }
+            if (!request.getCountryCode().equalsIgnoreCase(employee.getCountry().getCode())) {
+                throw new IllegalArgumentException("Changing employee country is not allowed: country-transfer workflows are excluded");
+            }
+        }
+
+        if (!request.getEmail().equalsIgnoreCase(employee.getEmail())) {
+            if (employeeRepository.existsByEmailAndIdNot(request.getEmail(), id)) {
+                throw new DuplicateResourceException("Email already exists: " + request.getEmail());
+            }
+        }
+
+        employeeMapper.updateEntity(employee, request);
+        Employee savedEmployee = employeeRepository.save(employee);
+        return employeeMapper.toResponse(savedEmployee);
+    }
+
+    @Transactional
+    public void deleteEmployee(UUID id) {
+        if (id == null) {
+            throw new ResourceNotFoundException("Employee id must not be null");
+        }
+
+        Employee employee = employeeRepository.findById(id)
+                .filter(e -> e.getDeletedAt() == null)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id: " + id));
+
+        employee.setDeletedAt(Instant.now());
+        employeeRepository.save(employee);
     }
 }

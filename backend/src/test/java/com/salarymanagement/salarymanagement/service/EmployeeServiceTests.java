@@ -1,6 +1,7 @@
 package com.salarymanagement.salarymanagement.service;
 
 import com.salarymanagement.salarymanagement.dto.request.CreateEmployeeRequest;
+import com.salarymanagement.salarymanagement.dto.request.UpdateEmployeeRequest;
 import com.salarymanagement.salarymanagement.dto.response.EmployeeResponse;
 import com.salarymanagement.salarymanagement.entity.Country;
 import com.salarymanagement.salarymanagement.entity.Employee;
@@ -213,5 +214,299 @@ class EmployeeServiceTests {
         );
 
         assertEquals("Employee not found with id: " + employeeId, ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("should update employee successfully")
+    void shouldUpdateEmployeeSuccessfully() {
+        UUID employeeId = UUID.randomUUID();
+        Employee employee = new Employee(
+                employeeId,
+                "EMP001",
+                "Alice",
+                "Smith",
+                "alice.smith@example.com",
+                country,
+                "Software Engineer",
+                "Engineering",
+                LocalDate.of(2025, 1, 15),
+                null,
+                null
+        );
+
+        UpdateEmployeeRequest updateRequest = new UpdateEmployeeRequest(
+                "Alicia",
+                "Smith-Johnson",
+                "alicia.johnson@example.com",
+                "US",
+                "Lead Engineer",
+                "Architecture",
+                LocalDate.of(2025, 12, 31)
+        );
+
+        when(employeeRepository.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(countryRepository.existsById("US")).thenReturn(true);
+        when(employeeRepository.existsByEmailAndIdNot("alicia.johnson@example.com", employeeId)).thenReturn(false);
+        when(employeeRepository.save(any(Employee.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        EmployeeResponse response = employeeService.updateEmployee(employeeId, updateRequest);
+
+        assertNotNull(response);
+        assertEquals(employeeId, response.getId());
+        assertEquals("EMP001", response.getEmployeeNumber()); // Unchanged
+        assertEquals("Alicia", response.getFirstName());
+        assertEquals("Smith-Johnson", response.getLastName());
+        assertEquals("alicia.johnson@example.com", response.getEmail());
+        assertEquals("Lead Engineer", response.getJobTitle());
+        assertEquals("Architecture", response.getDepartment());
+        assertEquals(LocalDate.of(2025, 12, 31), response.getTerminatedAt());
+        verify(employeeRepository).save(employee);
+    }
+
+    @Test
+    @DisplayName("should allow updating employee with the same email")
+    void shouldAllowUpdatingWithSameEmail() {
+        UUID employeeId = UUID.randomUUID();
+        Employee employee = new Employee(
+                employeeId,
+                "EMP001",
+                "Alice",
+                "Smith",
+                "alice.smith@example.com",
+                country,
+                "Software Engineer",
+                "Engineering",
+                LocalDate.of(2025, 1, 15),
+                null,
+                null
+        );
+
+        UpdateEmployeeRequest updateRequest = new UpdateEmployeeRequest(
+                "Alice",
+                "Smith",
+                "alice.smith@example.com",
+                null,
+                "Senior Engineer",
+                "Engineering",
+                null
+        );
+
+        when(employeeRepository.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(employeeRepository.save(any(Employee.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        EmployeeResponse response = employeeService.updateEmployee(employeeId, updateRequest);
+
+        assertNotNull(response);
+        assertEquals("Senior Engineer", response.getJobTitle());
+        verify(employeeRepository, never()).existsByEmailAndIdNot(any(), any());
+    }
+
+    @Test
+    @DisplayName("should throw DuplicateResourceException when updating email to one used by another employee")
+    void shouldThrowExceptionWhenUpdateEmailTaken() {
+        UUID employeeId = UUID.randomUUID();
+        Employee employee = new Employee(
+                employeeId,
+                "EMP001",
+                "Alice",
+                "Smith",
+                "alice.smith@example.com",
+                country,
+                "Software Engineer",
+                "Engineering",
+                LocalDate.of(2025, 1, 15),
+                null,
+                null
+        );
+
+        UpdateEmployeeRequest updateRequest = new UpdateEmployeeRequest(
+                "Alice",
+                "Smith",
+                "taken@example.com",
+                null,
+                "Software Engineer",
+                "Engineering",
+                null
+        );
+
+        when(employeeRepository.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(employeeRepository.existsByEmailAndIdNot("taken@example.com", employeeId)).thenReturn(true);
+
+        DuplicateResourceException ex = assertThrows(DuplicateResourceException.class, () ->
+                employeeService.updateEmployee(employeeId, updateRequest)
+        );
+
+        assertEquals("Email already exists: taken@example.com", ex.getMessage());
+        verify(employeeRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("should throw IllegalArgumentException when update termination date is before joining date")
+    void shouldThrowExceptionWhenUpdateTerminationBeforeJoining() {
+        UUID employeeId = UUID.randomUUID();
+        Employee employee = new Employee(
+                employeeId,
+                "EMP001",
+                "Alice",
+                "Smith",
+                "alice.smith@example.com",
+                country,
+                "Software Engineer",
+                "Engineering",
+                LocalDate.of(2025, 1, 15),
+                null,
+                null
+        );
+
+        UpdateEmployeeRequest updateRequest = new UpdateEmployeeRequest(
+                "Alice",
+                "Smith",
+                "alice.smith@example.com",
+                null,
+                "Software Engineer",
+                "Engineering",
+                LocalDate.of(2025, 1, 1) // Before joinedAt 2025-01-15
+        );
+
+        when(employeeRepository.findById(employeeId)).thenReturn(Optional.of(employee));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                employeeService.updateEmployee(employeeId, updateRequest)
+        );
+
+        assertEquals("Termination date cannot be before joining date", ex.getMessage());
+        verify(employeeRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("should throw CountryNotFoundException when updating with nonexistent country code")
+    void shouldThrowExceptionWhenUpdateCountryNotFound() {
+        UUID employeeId = UUID.randomUUID();
+        Employee employee = new Employee(
+                employeeId,
+                "EMP001",
+                "Alice",
+                "Smith",
+                "alice.smith@example.com",
+                country,
+                "Software Engineer",
+                "Engineering",
+                LocalDate.of(2025, 1, 15),
+                null,
+                null
+        );
+
+        UpdateEmployeeRequest updateRequest = new UpdateEmployeeRequest(
+                "Alice",
+                "Smith",
+                "alice.smith@example.com",
+                "NONEXIST",
+                "Software Engineer",
+                "Engineering",
+                null
+        );
+
+        when(employeeRepository.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(countryRepository.existsById("NONEXIST")).thenReturn(false);
+
+        CountryNotFoundException ex = assertThrows(CountryNotFoundException.class, () ->
+                employeeService.updateEmployee(employeeId, updateRequest)
+        );
+
+        assertEquals("Country not found with code: NONEXIST", ex.getMessage());
+        verify(employeeRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("should throw IllegalArgumentException when attempting to change country code")
+    void shouldThrowExceptionWhenAttemptingToChangeCountry() {
+        UUID employeeId = UUID.randomUUID();
+        Employee employee = new Employee(
+                employeeId,
+                "EMP001",
+                "Alice",
+                "Smith",
+                "alice.smith@example.com",
+                country,
+                "Software Engineer",
+                "Engineering",
+                LocalDate.of(2025, 1, 15),
+                null,
+                null
+        );
+
+        UpdateEmployeeRequest updateRequest = new UpdateEmployeeRequest(
+                "Alice",
+                "Smith",
+                "alice.smith@example.com",
+                "CA",
+                "Software Engineer",
+                "Engineering",
+                null
+        );
+
+        when(employeeRepository.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(countryRepository.existsById("CA")).thenReturn(true);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                employeeService.updateEmployee(employeeId, updateRequest)
+        );
+
+        assertEquals("Changing employee country is not allowed: country-transfer workflows are excluded", ex.getMessage());
+        verify(employeeRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("should soft-delete employee by setting deletedAt timestamp")
+    void shouldSoftDeleteEmployeeSuccessfully() {
+        UUID employeeId = UUID.randomUUID();
+        Employee employee = new Employee(
+                employeeId,
+                "EMP001",
+                "Alice",
+                "Smith",
+                "alice.smith@example.com",
+                country,
+                "Software Engineer",
+                "Engineering",
+                LocalDate.of(2025, 1, 15),
+                null,
+                null
+        );
+
+        when(employeeRepository.findById(employeeId)).thenReturn(Optional.of(employee));
+
+        employeeService.deleteEmployee(employeeId);
+
+        assertNotNull(employee.getDeletedAt());
+        verify(employeeRepository).save(employee);
+    }
+
+    @Test
+    @DisplayName("should throw ResourceNotFoundException when deleting an already soft-deleted employee")
+    void shouldThrowExceptionWhenDeletingAlreadyDeletedEmployee() {
+        UUID employeeId = UUID.randomUUID();
+        Employee employee = new Employee(
+                employeeId,
+                "EMP001",
+                "Alice",
+                "Smith",
+                "alice.smith@example.com",
+                country,
+                "Software Engineer",
+                "Engineering",
+                LocalDate.of(2025, 1, 15),
+                null,
+                Instant.now() // Already deleted
+        );
+
+        when(employeeRepository.findById(employeeId)).thenReturn(Optional.of(employee));
+
+        ResourceNotFoundException ex = assertThrows(ResourceNotFoundException.class, () ->
+                employeeService.deleteEmployee(employeeId)
+        );
+
+        assertEquals("Employee not found with id: " + employeeId, ex.getMessage());
+        verify(employeeRepository, never()).save(any());
     }
 }

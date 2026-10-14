@@ -1,6 +1,7 @@
 package com.salarymanagement.salarymanagement.mapper;
 
 import com.salarymanagement.salarymanagement.dto.request.CreateEmployeeRequest;
+import com.salarymanagement.salarymanagement.dto.request.UpdateEmployeeRequest;
 import com.salarymanagement.salarymanagement.dto.response.EmployeeResponse;
 import com.salarymanagement.salarymanagement.entity.Country;
 import com.salarymanagement.salarymanagement.entity.Employee;
@@ -28,6 +29,18 @@ public class EmployeeMapper {
                 request.getTerminatedAt(),
                 null
         );
+    }
+
+    public void updateEntity(Employee employee, UpdateEmployeeRequest request) {
+        if (employee == null || request == null) {
+            return;
+        }
+        employee.setFirstName(request.getFirstName());
+        employee.setLastName(request.getLastName());
+        employee.setEmail(request.getEmail());
+        employee.setJobTitle(request.getJobTitle());
+        employee.setDepartment(request.getDepartment());
+        employee.setTerminatedAt(request.getTerminatedAt());
     }
 
     public EmployeeResponse toResponse(Employee employee) {
