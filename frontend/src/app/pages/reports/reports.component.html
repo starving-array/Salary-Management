@@ -1,0 +1,264 @@
+<div class="reports-page">
+  <!-- Page Header -->
+  <header class="page-header">
+    <div class="header-text">
+      <h1 class="page-title">Salary Analytics & Country Reports</h1>
+      <p class="page-subtitle">
+        Review minimum, maximum, and average annual salaries by country and examine job-title salary distributions for any effective date.
+      </p>
+    </div>
+  </header>
+
+  <!-- Filter & Parameter Toolbar -->
+  <section class="filter-card" aria-label="Salary Report Parameters">
+    <div class="filter-grid">
+      <!-- Country Selection -->
+      <div class="filter-field">
+        <label for="report-country-select" class="filter-label">Country</label>
+        <select
+          id="report-country-select"
+          class="form-control"
+          [formControl]="countryControl"
+          aria-label="Select Country"
+        >
+          @for (c of supportedCountries; track c.code) {
+            <option [value]="c.code">{{ c.name }} ({{ c.code }}) - {{ c.currencyCode }}</option>
+          }
+        </select>
+      </div>
+
+      <!-- As of Date -->
+      <div class="filter-field">
+        <label for="report-as-of-date" class="filter-label">As of Date (Optional)</label>
+        <input
+          id="report-as-of-date"
+          type="date"
+          class="form-control"
+          [formControl]="asOfDateControl"
+          aria-label="Effective As of Date"
+        />
+      </div>
+
+      <!-- Job Title Filter -->
+      <div class="filter-field search-field">
+        <label for="report-job-title" class="filter-label">Job Title Filter (Optional)</label>
+        <input
+          id="report-job-title"
+          type="text"
+          class="form-control"
+          placeholder="Filter by job title (e.g. Software Engineer)..."
+          [formControl]="jobTitleFilterControl"
+          aria-label="Filter by job title"
+        />
+      </div>
+
+      <!-- Actions -->
+      <div class="filter-actions">
+        <button
+          type="button"
+          class="btn btn-primary"
+          (click)="loadReports()"
+          [disabled]="loadingSummary || loadingJobTitles"
+          aria-label="Refresh reports"
+        >
+          Refresh
+        </button>
+        <button
+          type="button"
+          class="btn btn-secondary"
+          (click)="resetFilters()"
+          [disabled]="loadingSummary || loadingJobTitles"
+          aria-label="Reset all filters"
+        >
+          Reset
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 1: Country Salary Summary -->
+  <section class="report-section" aria-labelledby="summary-heading">
+    <div class="section-header">
+      <h2 id="summary-heading" class="section-title">Country Salary Summary</h2>
+      @if (summary && !loadingSummary) {
+        <div class="meta-tag">
+          <span class="meta-country">{{ summary.countryName }} ({{ summary.countryCode }})</span>
+          <span class="meta-sep" aria-hidden="true">&bull;</span>
+          <span class="meta-currency">Currency: <strong>{{ summary.currencyCode }}</strong></span>
+          <span class="meta-sep" aria-hidden="true">&bull;</span>
+          <span class="meta-date">As of: <strong>{{ summary.asOfDate | date:'mediumDate' }}</strong></span>
+        </div>
+      }
+    </div>
+
+    <!-- Summary Loading State -->
+    @if (loadingSummary) {
+      <div class="loading-container" role="status" aria-live="polite">
+        <div class="spinner" aria-hidden="true"></div>
+        <span class="loading-text">Loading country salary summary...</span>
+      </div>
+    }
+
+    <!-- Summary Error State -->
+    @if (!loadingSummary && summaryError) {
+      <div class="error-banner" role="alert">
+        <div class="error-content">
+          <svg class="error-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="20" height="20" aria-hidden="true">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+          </svg>
+          <span class="error-text">{{ summaryError }}</span>
+        </div>
+        <button type="button" class="btn btn-sm btn-secondary" (click)="loadSummaryReport()">
+          Retry
+        </button>
+      </div>
+    }
+
+    <!-- Summary Cards Grid -->
+    @if (!loadingSummary && !summaryError && summary) {
+      <div class="stat-cards-grid">
+        <!-- Eligible Employees -->
+        <div class="stat-card">
+          <span class="stat-label">Eligible Employees</span>
+          <span class="stat-value eligible-count-value">{{ summary.eligibleEmployeeCount }}</span>
+          <span class="stat-subtext">Active with effective compensation</span>
+        </div>
+
+        <!-- Minimum Annual Salary -->
+        <div class="stat-card">
+          <span class="stat-label">Minimum Salary</span>
+          @if (summary.eligibleEmployeeCount > 0 && summary.minSalary != null) {
+            <span class="stat-value min-salary-value">{{ summary.minSalary | currency:summary.currencyCode:'symbol':'1.2-2' }}</span>
+          } @else {
+            <span class="stat-value stat-na min-salary-value" aria-label="Not available">—</span>
+          }
+          <span class="stat-subtext">Annual base compensation</span>
+        </div>
+
+        <!-- Maximum Annual Salary -->
+        <div class="stat-card">
+          <span class="stat-label">Maximum Salary</span>
+          @if (summary.eligibleEmployeeCount > 0 && summary.maxSalary != null) {
+            <span class="stat-value max-salary-value">{{ summary.maxSalary | currency:summary.currencyCode:'symbol':'1.2-2' }}</span>
+          } @else {
+            <span class="stat-value stat-na max-salary-value" aria-label="Not available">—</span>
+          }
+          <span class="stat-subtext">Annual base compensation</span>
+        </div>
+
+        <!-- Average Annual Salary -->
+        <div class="stat-card">
+          <span class="stat-label">Average Salary</span>
+          @if (summary.eligibleEmployeeCount > 0 && summary.averageSalary != null) {
+            <span class="stat-value avg-salary-value">{{ summary.averageSalary | currency:summary.currencyCode:'symbol':'1.2-2' }}</span>
+          } @else {
+            <span class="stat-value stat-na avg-salary-value" aria-label="Not available">—</span>
+          }
+          <span class="stat-subtext">Annual base compensation</span>
+        </div>
+      </div>
+
+      <!-- Zero Eligible Employees Notice -->
+      @if (summary.eligibleEmployeeCount === 0) {
+        <div class="zero-state-callout" role="note">
+          <svg class="info-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="20" height="20" aria-hidden="true">
+            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+          </svg>
+          <span>No eligible employees with active compensation found for {{ summary.countryName }} as of {{ summary.asOfDate }}. Statistics are omitted.</span>
+        </div>
+      }
+    }
+  </section>
+
+  <!-- Section 2: Salary Breakdown by Job Title -->
+  <section class="report-section" aria-labelledby="job-titles-heading">
+    <div class="section-header">
+      <h2 id="job-titles-heading" class="section-title">Average Salary by Job Title</h2>
+      @if (jobTitleSummary && !loadingJobTitles && !jobTitlesError) {
+        <div class="meta-tag">
+          <span>{{ jobTitleSummary.jobTitles.length }} {{ jobTitleSummary.jobTitles.length === 1 ? 'job title' : 'job titles' }}</span>
+          <span class="meta-sep" aria-hidden="true">&bull;</span>
+          <span>{{ jobTitleSummary.totalEligibleEmployees }} eligible {{ jobTitleSummary.totalEligibleEmployees === 1 ? 'employee' : 'employees' }}</span>
+        </div>
+      }
+    </div>
+
+    <!-- Job Titles Loading State -->
+    @if (loadingJobTitles) {
+      <div class="loading-container" role="status" aria-live="polite">
+        <div class="spinner" aria-hidden="true"></div>
+        <span class="loading-text">Loading salary breakdown by job title...</span>
+      </div>
+    }
+
+    <!-- Job Titles Error State -->
+    @if (!loadingJobTitles && jobTitlesError) {
+      <div class="error-banner" role="alert">
+        <div class="error-content">
+          <svg class="error-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="20" height="20" aria-hidden="true">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+          </svg>
+          <span class="error-text">{{ jobTitlesError }}</span>
+        </div>
+        <button type="button" class="btn btn-sm btn-secondary" (click)="loadJobTitlesReport()">
+          Retry
+        </button>
+      </div>
+    }
+
+    <!-- Job Titles Table & Empty State -->
+    @if (!loadingJobTitles && !jobTitlesError && jobTitleSummary) {
+      @if (jobTitleSummary.jobTitles.length > 0) {
+        <div class="table-container">
+          <table class="data-table" aria-label="Average Salary by Job Title Table">
+            <thead>
+              <tr>
+                <th scope="col">Job Title</th>
+                <th scope="col" class="text-right">Eligible Employees</th>
+                <th scope="col" class="text-right">Average Annual Salary</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of jobTitleSummary.jobTitles; track item.jobTitle) {
+                <tr class="job-title-row">
+                  <td class="font-medium job-title-name">{{ item.jobTitle }}</td>
+                  <td class="text-right job-title-count">{{ item.employeeCount }}</td>
+                  <td class="text-right font-semibold job-title-avg-salary">
+                    @if (item.averageSalary != null && item.employeeCount > 0) {
+                      {{ item.averageSalary | currency:jobTitleSummary.currencyCode:'symbol':'1.2-2' }}
+                    } @else {
+                      <span class="stat-na" aria-label="Not available">—</span>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <div class="empty-state-card" role="status">
+          <div class="empty-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <h3 class="empty-title">No Job Title Breakdown Available</h3>
+          <p class="empty-text">
+            @if (jobTitleFilterControl.value) {
+              No results found for job title "{{ jobTitleFilterControl.value }}" in {{ jobTitleSummary.countryName }}.
+            } @else {
+              No eligible employees with compensation records found for {{ jobTitleSummary.countryName }} as of {{ jobTitleSummary.asOfDate }}.
+            }
+          </p>
+          @if (jobTitleFilterControl.value) {
+            <div class="empty-actions">
+              <button type="button" class="btn btn-secondary btn-sm" (click)="clearJobTitleFilter()">
+                Clear Job Title Filter
+              </button>
+            </div>
+          }
+        </div>
+      }
+    }
+  </section>
+</div>

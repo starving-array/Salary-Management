@@ -1,7 +1,7 @@
 import { Routes } from '@angular/router';
 import { DashboardComponent } from './pages/dashboard/dashboard.component';
 import { EmployeesComponent } from './pages/employees/employees.component';
-import { PlaceholderComponent } from './pages/placeholder/placeholder.component';
+import { ReportsComponent } from './pages/reports/reports.component';
 
 export const routes: Routes = [
   {
@@ -21,13 +21,8 @@ export const routes: Routes = [
   },
   {
     path: 'reports',
-    component: PlaceholderComponent,
-    title: 'Salary Reports - Salary Management',
-    data: {
-      moduleName: 'Salary Analytics & Country Reports',
-      phase: 'Phase 5C',
-      description: 'Country salary statistics (min, max, average) and job-title breakdowns with historical date selection will be implemented in Phase 5C.'
-    }
+    component: ReportsComponent,
+    title: 'Salary Reports - Salary Management'
   },
   {
     path: '**',
