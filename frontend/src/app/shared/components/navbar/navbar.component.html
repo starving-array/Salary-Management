@@ -1,0 +1,52 @@
+<header class="app-header">
+  <div class="header-container">
+    <div class="brand">
+      <a routerLink="/" class="brand-link">
+        <svg class="brand-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="24" height="24" aria-hidden="true">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 16h-2v-2h2v2zm0-4h-2V7h2v7z" />
+        </svg>
+        <span class="brand-title">Salary Management</span>
+      </a>
+      <span class="brand-badge">HR Portal</span>
+    </div>
+
+    <button
+      class="mobile-toggle"
+      (click)="toggleNav()"
+      [attr.aria-expanded]="navOpen"
+      aria-label="Toggle navigation menu"
+    >
+      <span class="hamburger"></span>
+    </button>
+
+    <nav class="nav-links" [class.open]="navOpen" aria-label="Main Navigation">
+      <a
+        routerLink="/dashboard"
+        routerLinkActive="active"
+        [routerLinkActiveOptions]="{ exact: true }"
+        class="nav-link"
+        (click)="navOpen = false"
+      >
+        Dashboard
+      </a>
+      <a
+        routerLink="/employees"
+        routerLinkActive="active"
+        class="nav-link"
+        (click)="navOpen = false"
+      >
+        Employees
+        <span class="nav-tag">Phase 5B</span>
+      </a>
+      <a
+        routerLink="/reports"
+        routerLinkActive="active"
+        class="nav-link"
+        (click)="navOpen = false"
+      >
+        Reports
+        <span class="nav-tag">Phase 5C</span>
+      </a>
+    </nav>
+  </div>
+</header>
