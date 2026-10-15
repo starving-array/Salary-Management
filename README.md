@@ -118,3 +118,14 @@ To perform a safe reset via CLI flags:
   cd frontend
   npm run build
   ```
+
+---
+
+## Documentation Index
+
+- [Requirements Specification](docs/requirements.md) — Functional and non-functional requirements and acceptance criteria.
+- [Architecture Overview](docs/architecture.md) — System boundaries, tech stack, and module design.
+- [Domain Design](docs/design.md) — Entity relationships, effective-date rules, and reporting logic.
+- [Technical Trade-offs](docs/trade-offs.md) — Architectural decisions, alternatives considered, and trade-off rationales.
+- [Performance & Benchmarks](docs/performance.md) — Empirical seed metrics, API latencies, indexing strategy, and bundle sizes.
+- [AI Usage Notes](docs/ai-usage.md) — Methodological notes on AI assistance and engineering oversight.
