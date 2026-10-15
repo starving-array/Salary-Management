@@ -23,6 +23,7 @@ import {
   EmployeePageResponse,
   UpdateEmployeeRequest
 } from '../../models/employee.model';
+import { CompensationModalComponent } from './compensation-modal/compensation-modal.component';
 
 export function dateOrderValidator(control: AbstractControl): ValidationErrors | null {
   const joinedAt = control.get('joinedAt')?.value;
@@ -47,7 +48,7 @@ export function editTerminationValidator(getJoinedAt: () => string | null | unde
 @Component({
   selector: 'app-employees',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, DatePipe],
+  imports: [CommonModule, ReactiveFormsModule, DatePipe, CompensationModalComponent],
   templateUrl: './employees.component.html',
   styleUrl: './employees.component.css'
 })
@@ -128,6 +129,17 @@ export class EmployeesComponent implements OnInit, OnDestroy {
   employeeToDelete: Employee | null = null;
   deleteError: string | null = null;
 
+  // Compensation Modal State
+  selectedCompensationEmployee: Employee | null = null;
+
+  openCompensationModal(employee: Employee): void {
+    this.selectedCompensationEmployee = employee;
+  }
+
+  closeCompensationModal(): void {
+    this.selectedCompensationEmployee = null;
+  }
+
   ngOnInit(): void {
     this.setupFilterListeners();
     this.setupDirectoryStream();
@@ -141,7 +153,9 @@ export class EmployeesComponent implements OnInit, OnDestroy {
 
   @HostListener('document:keydown.escape')
   onEscapePressed(): void {
-    if (this.showDeleteModal && !this.deleting) {
+    if (this.selectedCompensationEmployee) {
+      this.closeCompensationModal();
+    } else if (this.showDeleteModal && !this.deleting) {
       this.closeDeleteModal();
     } else if (this.showEditModal && !this.savingEdit) {
       this.closeEditModal();

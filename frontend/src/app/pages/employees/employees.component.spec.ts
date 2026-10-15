@@ -2,6 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { ApiErrorService } from '../../core/services/api-error.service';
+import { CompensationApiService } from '../../core/services/compensation-api.service';
 import { EmployeeApiService } from '../../core/services/employee-api.service';
 import { ApiError } from '../../models/api-error.model';
 import { Employee, EmployeePageResponse } from '../../models/employee.model';
@@ -64,6 +65,14 @@ describe('EmployeesComponent', () => {
       imports: [EmployeesComponent],
       providers: [
         { provide: EmployeeApiService, useValue: employeeApiService },
+        {
+          provide: CompensationApiService,
+          useValue: {
+            getCompensationHistory: vi.fn().mockReturnValue(of([])),
+            assignInitialSalary: vi.fn(),
+            recordSalaryChange: vi.fn()
+          }
+        },
         ApiErrorService
       ]
     }).compileComponents();
@@ -563,6 +572,29 @@ describe('EmployeesComponent', () => {
 
       component.onEscapePressed();
       expect(component.showDeleteModal).toBe(false);
+
+      // Open compensation modal
+      component.openCompensationModal(mockEmployee1);
+      expect(component.selectedCompensationEmployee).toBe(mockEmployee1);
+
+      component.onEscapePressed();
+      expect(component.selectedCompensationEmployee).toBeNull();
+    });
+
+    it('should open compensation modal when clicking Comp button in directory row', () => {
+      fixture.detectChanges();
+
+      const compBtn = fixture.nativeElement.querySelector('.btn-comp') as HTMLButtonElement;
+      expect(compBtn).toBeTruthy();
+
+      compBtn.click();
+      fixture.detectChanges();
+
+      expect(component.selectedCompensationEmployee).toBeTruthy();
+      expect(component.selectedCompensationEmployee?.employeeNumber).toBe('EMP-001');
+
+      component.closeCompensationModal();
+      expect(component.selectedCompensationEmployee).toBeNull();
     });
 
     it('should have proper ARIA attributes on modal dialogs', () => {

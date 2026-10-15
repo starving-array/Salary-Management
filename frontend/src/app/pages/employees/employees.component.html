@@ -170,6 +170,14 @@
                 <td class="td-actions">
                   <button
                     type="button"
+                    class="btn-action btn-comp"
+                    (click)="openCompensationModal(emp)"
+                    [attr.aria-label]="'Manage compensation for employee ' + emp.firstName + ' ' + emp.lastName"
+                  >
+                    Comp
+                  </button>
+                  <button
+                    type="button"
                     class="btn-action btn-edit"
                     (click)="openEditModal(emp)"
                     [attr.aria-label]="'Edit employee ' + emp.firstName + ' ' + emp.lastName"
@@ -722,6 +730,13 @@
             <button
               type="button"
               class="btn btn-secondary"
+              (click)="openCompensationModal(selectedEmployee); closeEditModal()"
+            >
+              Compensation History
+            </button>
+            <button
+              type="button"
+              class="btn btn-secondary"
               (click)="closeEditModal()"
               [disabled]="savingEdit"
             >
@@ -819,4 +834,13 @@
       </div>
     </div>
   }
+
+  <!-- ================= COMPENSATION MODAL ================= -->
+  @if (selectedCompensationEmployee) {
+    <app-compensation-modal
+      [employee]="selectedCompensationEmployee"
+      (close)="closeCompensationModal()"
+    ></app-compensation-modal>
+  }
 </div>
+

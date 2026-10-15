@@ -1,0 +1,327 @@
+<div class="modal-backdrop" (click)="closeModal()">
+  <div
+    class="modal-dialog modal-dialog-lg"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="comp-modal-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header class="modal-header">
+      <div class="header-title-group">
+        <h2 id="comp-modal-title" class="modal-title">Compensation Management</h2>
+        <span class="header-badge">{{ currencyCode }}</span>
+      </div>
+      <button
+        type="button"
+        class="modal-close-btn"
+        (click)="closeModal()"
+        [disabled]="savingInitial || savingChange"
+        aria-label="Close compensation modal"
+      >
+        &times;
+      </button>
+    </header>
+
+    <div class="modal-body">
+      <!-- Employee Profile Summary Banner -->
+      <section class="emp-profile-card" aria-label="Employee Summary">
+        <div class="profile-item">
+          <span class="profile-label">Employee</span>
+          <span class="profile-value">{{ employee.firstName }} {{ employee.lastName }}</span>
+        </div>
+        <div class="profile-item">
+          <span class="profile-label">Employee #</span>
+          <span class="profile-code">{{ employee.employeeNumber }}</span>
+        </div>
+        <div class="profile-item">
+          <span class="profile-label">Country</span>
+          <span class="profile-value">{{ countryDisplayName }}</span>
+        </div>
+        <div class="profile-item">
+          <span class="profile-label">Currency</span>
+          <span class="profile-value">{{ currencyCode }}</span>
+        </div>
+        <div class="profile-item">
+          <span class="profile-label">Joined</span>
+          <span class="profile-value">{{ employee.joinedAt | date:'mediumDate' }}</span>
+        </div>
+        @if (employee.terminatedAt) {
+          <div class="profile-item">
+            <span class="profile-label">Terminated</span>
+            <span class="profile-value text-muted">{{ employee.terminatedAt | date:'mediumDate' }}</span>
+          </div>
+        }
+      </section>
+
+      <!-- Notification Banner -->
+      @if (notificationMessage) {
+        <div class="notification-banner" role="status" aria-live="polite">
+          <div class="notification-content">
+            <svg class="notification-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="20" height="20" aria-hidden="true">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+            </svg>
+            <span>{{ notificationMessage }}</span>
+          </div>
+          <button
+            type="button"
+            class="notification-close"
+            (click)="dismissNotification()"
+            aria-label="Dismiss notification"
+          >
+            &times;
+          </button>
+        </div>
+      }
+
+      <!-- Loading State -->
+      @if (loading) {
+        <div class="loading-container" role="status" aria-live="polite">
+          <div class="spinner" aria-hidden="true"></div>
+          <span class="loading-text">Loading compensation history...</span>
+        </div>
+      }
+
+      <!-- History Load Error State -->
+      @if (historyError && !loading) {
+        <div class="error-banner" role="alert">
+          <div class="error-content">
+            <svg class="error-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="20" height="20" aria-hidden="true">
+              <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+            </svg>
+            <span>{{ historyError }}</span>
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm" (click)="loadHistory()">Retry</button>
+        </div>
+      }
+
+      <!-- Content (when not loading and no load error) -->
+      @if (!loading && !historyError) {
+        @if (hasHistory) {
+          <!-- Existing Compensation History Section -->
+          <section class="comp-section" aria-label="Compensation History">
+            <div class="section-header">
+              <h3 class="section-title">Chronological Compensation History</h3>
+              <span class="record-count-badge">{{ records.length }} record{{ records.length === 1 ? '' : 's' }}</span>
+            </div>
+
+            <div class="table-container" role="region" aria-label="Salary History Table" tabindex="0">
+              <table class="data-table">
+                <caption class="visually-hidden">Compensation Records Table</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Status</th>
+                    <th scope="col">Annual Salary</th>
+                    <th scope="col">Currency</th>
+                    <th scope="col">Effective From</th>
+                    <th scope="col">Effective To</th>
+                    <th scope="col">Recorded At</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (rec of records; track rec.id) {
+                    <tr>
+                      <td>
+                        <span
+                          class="status-pill"
+                          [class.status-active]="!rec.effectiveTo"
+                          [class.status-terminated]="!!rec.effectiveTo"
+                        >
+                          {{ rec.effectiveTo ? 'Historical' : 'Current' }}
+                        </span>
+                      </td>
+                      <td class="salary-cell">
+                        <strong>{{ rec.annualSalary | currency:rec.currencyCode:'symbol':'1.2-2' }}</strong>
+                      </td>
+                      <td>{{ rec.currencyCode }}</td>
+                      <td>{{ rec.effectiveFrom | date:'mediumDate' }}</td>
+                      <td>
+                        @if (rec.effectiveTo) {
+                          <span>{{ rec.effectiveTo | date:'mediumDate' }}</span>
+                        } @else {
+                          <span class="active-tag">Present (Active)</span>
+                        }
+                      </td>
+                      <td class="text-muted">{{ rec.createdAt | date:'short' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- Record Salary Change Section -->
+          <section class="comp-section change-section" aria-label="Record Salary Change">
+            <div class="section-header">
+              <h3 class="section-title">Record Salary Change</h3>
+            </div>
+            <p class="section-desc">
+              Recording a salary change establishes a new historical compensation record effective from the selected date.
+              The active salary record will automatically close as of this effective start date.
+            </p>
+
+            @if (changeError) {
+              <div class="modal-error-alert" role="alert">
+                {{ changeError }}
+              </div>
+            }
+
+            <form [formGroup]="changeForm" (ngSubmit)="submitSalaryChange()" class="change-form" novalidate>
+              <div class="form-grid">
+                <!-- Annual Salary -->
+                <div class="form-group">
+                  <label for="change-salary" class="form-label">
+                    New Annual Salary ({{ currencyCode }}) <span class="required-star">*</span>
+                  </label>
+                  <input
+                    id="change-salary"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    class="form-control"
+                    formControlName="annualSalary"
+                    placeholder="e.g. 85000.00"
+                  />
+                  @if (changeForm.get('annualSalary')?.invalid && (changeForm.get('annualSalary')?.touched || changeForm.get('annualSalary')?.dirty)) {
+                    <p class="field-error" role="alert">
+                      @if (changeForm.get('annualSalary')?.errors?.['required']) {
+                        Annual salary is required.
+                      }
+                      @if (changeForm.get('annualSalary')?.errors?.['min']) {
+                        Annual salary must be positive.
+                      }
+                    </p>
+                  }
+                </div>
+
+                <!-- Effective From -->
+                <div class="form-group">
+                  <label for="change-effective-from" class="form-label">
+                    Effective From Date <span class="required-star">*</span>
+                  </label>
+                  <input
+                    id="change-effective-from"
+                    type="date"
+                    class="form-control"
+                    formControlName="effectiveFrom"
+                  />
+                  @if (changeForm.get('effectiveFrom')?.invalid && (changeForm.get('effectiveFrom')?.touched || changeForm.get('effectiveFrom')?.dirty)) {
+                    <p class="field-error" role="alert">Effective from date is required.</p>
+                  }
+                </div>
+              </div>
+
+              <div class="form-actions">
+                <button
+                  type="submit"
+                  class="btn btn-primary"
+                  [disabled]="savingChange"
+                >
+                  @if (savingChange) {
+                    <span class="btn-spinner" aria-hidden="true"></span>
+                    <span>Recording Change...</span>
+                  } @else {
+                    <span>Record Salary Change</span>
+                  }
+                </button>
+              </div>
+            </form>
+          </section>
+        } @else {
+          <!-- Empty History State & Initial Salary Form -->
+          <div class="empty-history-box" role="region" aria-label="No Compensation History">
+            <div class="empty-history-header">
+              <svg class="empty-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="36" height="36" aria-hidden="true">
+                <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 14.5h-2v-2h2v2zm0-4h-2V7h2v5.5z"/>
+              </svg>
+              <div>
+                <h3 class="empty-history-title">No Compensation History</h3>
+                <p class="empty-history-text">
+                  This employee has no compensation records. Assign an initial annual salary below to establish their starting compensation.
+                </p>
+              </div>
+            </div>
+
+            @if (initialError) {
+              <div class="modal-error-alert" role="alert">
+                {{ initialError }}
+              </div>
+            }
+
+            <form [formGroup]="initialForm" (ngSubmit)="submitInitialSalary()" class="initial-salary-form" novalidate>
+              <div class="form-grid">
+                <!-- Annual Salary -->
+                <div class="form-group">
+                  <label for="initial-salary" class="form-label">
+                    Initial Annual Salary ({{ currencyCode }}) <span class="required-star">*</span>
+                  </label>
+                  <input
+                    id="initial-salary"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    class="form-control"
+                    formControlName="annualSalary"
+                    placeholder="e.g. 75000.00"
+                  />
+                  @if (initialForm.get('annualSalary')?.invalid && (initialForm.get('annualSalary')?.touched || initialForm.get('annualSalary')?.dirty)) {
+                    <p class="field-error" role="alert">
+                      @if (initialForm.get('annualSalary')?.errors?.['required']) {
+                        Annual salary is required.
+                      }
+                      @if (initialForm.get('annualSalary')?.errors?.['min']) {
+                        Annual salary must be positive.
+                      }
+                    </p>
+                  }
+                </div>
+
+                <!-- Effective From -->
+                <div class="form-group">
+                  <label for="initial-effective-from" class="form-label">
+                    Effective From Date <span class="required-star">*</span>
+                  </label>
+                  <input
+                    id="initial-effective-from"
+                    type="date"
+                    class="form-control"
+                    formControlName="effectiveFrom"
+                  />
+                  @if (initialForm.get('effectiveFrom')?.invalid && (initialForm.get('effectiveFrom')?.touched || initialForm.get('effectiveFrom')?.dirty)) {
+                    <p class="field-error" role="alert">Effective from date is required.</p>
+                  }
+                  <span class="field-hint">Defaults to employee joining date ({{ employee.joinedAt }}).</span>
+                </div>
+              </div>
+
+              <div class="form-actions">
+                <button
+                  type="submit"
+                  class="btn btn-primary"
+                  [disabled]="savingInitial"
+                >
+                  @if (savingInitial) {
+                    <span class="btn-spinner" aria-hidden="true"></span>
+                    <span>Assigning Salary...</span>
+                  } @else {
+                    <span>Assign Initial Salary</span>
+                  }
+                </button>
+              </div>
+            </form>
+          </div>
+        }
+      }
+    </div>
+
+    <footer class="modal-footer">
+      <button
+        type="button"
+        class="btn btn-secondary"
+        (click)="closeModal()"
+        [disabled]="savingInitial || savingChange"
+      >
+        Close
+      </button>
+    </footer>
+  </div>
+</div>

@@ -1,0 +1,26 @@
+.modal-dialog-lg{max-width:780px}
+.header-title-group{display:flex;align-items:center;gap:.75rem}
+.header-badge{font-size:.775rem;font-weight:700;color:#0284c7;background:#e0f2fe;padding:.2rem .55rem;border-radius:9999px;border:1px solid #bae6fd}
+.emp-profile-card{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.75rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.75rem 1rem}
+.profile-item{display:flex;flex-direction:column;gap:.2rem}
+.profile-label{font-size:.725rem;font-weight:600;color:#64748b;text-transform:uppercase}
+.profile-value{font-size:.875rem;font-weight:600;color:#0f172a}
+.profile-code{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:.825rem;font-weight:600;color:#0369a1}
+.comp-section{display:flex;flex-direction:column;gap:.75rem}
+.section-header{display:flex;justify-content:space-between;align-items:center}
+.section-title{font-size:1.05rem;font-weight:700;color:#0f172a;margin:0}
+.section-desc{font-size:.875rem;color:#64748b;margin:0;line-height:1.5}
+.record-count-badge{font-size:.75rem;font-weight:600;color:#475569;background:#f1f5f9;padding:.2rem .5rem;border-radius:9999px}
+.salary-cell strong{color:#0f172a;font-size:.925rem}
+.active-tag{color:#059669;font-weight:600;font-size:.825rem}
+.text-muted{color:#64748b}
+.change-section{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:1rem 1.25rem}
+.change-form,.initial-salary-form{display:flex;flex-direction:column;gap:1rem;margin-top:.5rem}
+.form-actions{display:flex;justify-content:flex-end}
+.empty-history-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:1.5rem;display:flex;flex-direction:column;gap:1.25rem}
+.empty-history-header{display:flex;align-items:flex-start;gap:.85rem}
+.empty-history-header .empty-icon{color:#0284c7;flex-shrink:0}
+.empty-history-title{font-size:1.1rem;font-weight:700;color:#0f172a;margin:0 0 .25rem}
+.empty-history-text{font-size:.875rem;color:#64748b;margin:0;line-height:1.5}
+.field-hint{font-size:.775rem;color:#64748b;margin-top:.2rem}
+@media(max-width:640px){.emp-profile-card{grid-template-columns:1fr 1fr}}
