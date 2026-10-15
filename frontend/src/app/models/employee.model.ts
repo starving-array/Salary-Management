@@ -32,3 +32,21 @@ export interface UpdateEmployeeRequest {
   department?: string | null;
   terminatedAt?: string | null;
 }
+
+export interface EmployeePageResponse {
+  content: Employee[];
+  totalElements: number;
+  totalPages: number;
+  page: number;
+  size: number;
+  hasNext: boolean;
+}
+
+export interface EmployeeFilterParams {
+  search?: string;
+  countryCode?: string;
+  jobTitle?: string;
+  page?: number;
+  size?: number;
+}
+

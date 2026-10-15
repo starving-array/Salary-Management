@@ -3,7 +3,12 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { API_BASE_URL } from '../config/api.config';
 import { EmployeeApiService } from './employee-api.service';
-import { CreateEmployeeRequest, Employee, UpdateEmployeeRequest } from '../../models/employee.model';
+import {
+  CreateEmployeeRequest,
+  Employee,
+  EmployeePageResponse,
+  UpdateEmployeeRequest
+} from '../../models/employee.model';
 
 describe('EmployeeApiService', () => {
   let service: EmployeeApiService;
@@ -26,6 +31,58 @@ describe('EmployeeApiService', () => {
 
   afterEach(() => {
     httpMock.verify();
+  });
+
+  it('should fetch paginated employees with default parameters', () => {
+    const mockPage: EmployeePageResponse = {
+      content: [],
+      totalElements: 0,
+      totalPages: 0,
+      page: 0,
+      size: 20,
+      hasNext: false
+    };
+
+    service.getEmployees().subscribe(page => {
+      expect(page).toEqual(mockPage);
+    });
+
+    const req = httpMock.expectOne(`${baseUrl}/employees`);
+    expect(req.request.method).toBe('GET');
+    expect(req.request.params.keys().length).toBe(0);
+    req.flush(mockPage);
+  });
+
+  it('should pass query filter parameters when fetching employees', () => {
+    const mockPage: EmployeePageResponse = {
+      content: [],
+      totalElements: 5,
+      totalPages: 1,
+      page: 1,
+      size: 10,
+      hasNext: false
+    };
+
+    service.getEmployees({
+      search: 'Ada',
+      countryCode: 'US',
+      jobTitle: 'Engineer',
+      page: 1,
+      size: 10
+    }).subscribe(page => {
+      expect(page).toEqual(mockPage);
+    });
+
+    const req = httpMock.expectOne(request =>
+      request.url === `${baseUrl}/employees` &&
+      request.params.get('search') === 'Ada' &&
+      request.params.get('countryCode') === 'US' &&
+      request.params.get('jobTitle') === 'Engineer' &&
+      request.params.get('page') === '1' &&
+      request.params.get('size') === '10'
+    );
+    expect(req.request.method).toBe('GET');
+    req.flush(mockPage);
   });
 
   it('should fetch an employee by id', () => {

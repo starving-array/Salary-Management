@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { DashboardComponent } from './pages/dashboard/dashboard.component';
+import { EmployeesComponent } from './pages/employees/employees.component';
 import { PlaceholderComponent } from './pages/placeholder/placeholder.component';
 
 export const routes: Routes = [
@@ -15,13 +16,8 @@ export const routes: Routes = [
   },
   {
     path: 'employees',
-    component: PlaceholderComponent,
-    title: 'Employees - Salary Management',
-    data: {
-      moduleName: 'Employee Directory & Compensation',
-      phase: 'Phase 5B',
-      description: 'Employee directory search, country & job title filters, pagination, detail editing, and compensation history workflows will be implemented in Phase 5B.'
-    }
+    component: EmployeesComponent,
+    title: 'Employees - Salary Management'
   },
   {
     path: 'reports',

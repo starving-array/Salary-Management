@@ -1,0 +1,822 @@
+<div class="employees-page">
+  <!-- Page Header & Action -->
+  <header class="page-header">
+    <div class="header-text">
+      <h1 class="page-title">Employee Directory</h1>
+      <p class="page-subtitle">Search, view, create, edit, and manage employee records.</p>
+    </div>
+    <div class="header-actions">
+      <button
+        type="button"
+        class="btn btn-primary"
+        (click)="openCreateModal()"
+        aria-haspopup="dialog"
+      >
+        <svg class="btn-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="18" height="18" aria-hidden="true">
+          <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+        </svg>
+        Add Employee
+      </button>
+    </div>
+  </header>
+
+  <!-- Notification Banner -->
+  @if (notificationMessage) {
+    <div class="notification-banner" role="status" aria-live="polite">
+      <div class="notification-content">
+        <svg class="notification-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="20" height="20" aria-hidden="true">
+          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+        </svg>
+        <span>{{ notificationMessage }}</span>
+      </div>
+      <button
+        type="button"
+        class="notification-close"
+        (click)="dismissNotification()"
+        aria-label="Dismiss notification"
+      >
+        &times;
+      </button>
+    </div>
+  }
+
+  <!-- Filter & Search Controls Bar -->
+  <section class="filter-card" aria-label="Employee Search and Filters">
+    <div class="filter-grid">
+      <!-- Search input -->
+      <div class="filter-field search-field">
+        <label for="search-input" class="filter-label">Search</label>
+        <div class="search-input-wrapper">
+          <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="18" height="18" aria-hidden="true">
+            <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+          </svg>
+          <input
+            id="search-input"
+            type="text"
+            class="form-control"
+            placeholder="Search by number, name, or email..."
+            [formControl]="searchControl"
+            autocomplete="off"
+          />
+        </div>
+      </div>
+
+      <!-- Country filter -->
+      <div class="filter-field">
+        <label for="country-filter" class="filter-label">Country</label>
+        <select
+          id="country-filter"
+          class="form-control"
+          [formControl]="countryControl"
+        >
+          <option value="">All Countries</option>
+          @for (c of supportedCountries; track c.code) {
+            <option [value]="c.code">{{ c.code }} - {{ c.name }}</option>
+          }
+        </select>
+      </div>
+
+      <!-- Job Title filter -->
+      <div class="filter-field">
+        <label for="job-title-filter" class="filter-label">Job Title</label>
+        <input
+          id="job-title-filter"
+          type="text"
+          class="form-control"
+          placeholder="Filter by job title..."
+          [formControl]="jobTitleControl"
+          autocomplete="off"
+        />
+      </div>
+
+      <!-- Reset Filters Button -->
+      <div class="filter-field reset-field">
+        <label class="filter-label visually-hidden">Reset Filters</label>
+        <button
+          type="button"
+          class="btn btn-secondary reset-btn"
+          (click)="resetFilters()"
+          [disabled]="!hasActiveFilters()"
+        >
+          Reset Filters
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Error State Banner -->
+  @if (directoryError && !loading) {
+    <div class="error-banner" role="alert">
+      <div class="error-content">
+        <svg class="error-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="20" height="20" aria-hidden="true">
+          <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+        </svg>
+        <span>{{ directoryError }}</span>
+      </div>
+      <button type="button" class="btn btn-secondary btn-sm" (click)="reload()">Retry</button>
+    </div>
+  }
+
+  <!-- Loading Indicator -->
+  @if (loading) {
+    <div class="loading-container" role="status" aria-live="polite">
+      <div class="spinner" aria-hidden="true"></div>
+      <span class="loading-text">Loading employee records...</span>
+    </div>
+  }
+
+  <!-- Table View -->
+  @if (!loading && !directoryError) {
+    @if (employees.length > 0) {
+      <div class="table-container" role="region" aria-label="Employees Directory Table" tabindex="0">
+        <table class="data-table">
+          <caption class="visually-hidden">Employee Directory Table</caption>
+          <thead>
+            <tr>
+              <th scope="col">Employee #</th>
+              <th scope="col">Name</th>
+              <th scope="col">Email</th>
+              <th scope="col">Country</th>
+              <th scope="col">Job Title</th>
+              <th scope="col">Department</th>
+              <th scope="col">Joined Date</th>
+              <th scope="col">Status</th>
+              <th scope="col" class="th-actions">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (emp of employees; track emp.id) {
+              <tr>
+                <td class="emp-number">
+                  <span class="code-badge">{{ emp.employeeNumber }}</span>
+                </td>
+                <td class="emp-name">{{ emp.firstName }} {{ emp.lastName }}</td>
+                <td class="emp-email">
+                  <a [href]="'mailto:' + emp.email" class="email-link">{{ emp.email }}</a>
+                </td>
+                <td>{{ getCountryName(emp.countryCode) }}</td>
+                <td>{{ emp.jobTitle }}</td>
+                <td>{{ emp.department || '—' }}</td>
+                <td>{{ emp.joinedAt | date:'mediumDate' }}</td>
+                <td>
+                  <span
+                    class="status-pill"
+                    [class.status-active]="!emp.terminatedAt"
+                    [class.status-terminated]="!!emp.terminatedAt"
+                  >
+                    {{ formatStatus(emp) }}
+                  </span>
+                </td>
+                <td class="td-actions">
+                  <button
+                    type="button"
+                    class="btn-action btn-edit"
+                    (click)="openEditModal(emp)"
+                    [attr.aria-label]="'Edit employee ' + emp.firstName + ' ' + emp.lastName"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    class="btn-action btn-delete"
+                    (click)="openDeleteModal(emp)"
+                    [attr.aria-label]="'Delete employee ' + emp.firstName + ' ' + emp.lastName"
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination Footer -->
+      <footer class="pagination-footer" aria-label="Pagination Navigation">
+        <div class="pagination-info">
+          <span>Showing {{ paginationStart }} - {{ paginationEnd }} of {{ pageInfo.totalElements }} employees</span>
+          <div class="page-size-selector">
+            <label for="page-size-select" class="size-label">Per page:</label>
+            <select
+              id="page-size-select"
+              class="form-control size-select"
+              [value]="pageInfo.size"
+              (change)="onPageSizeChange($event)"
+            >
+              @for (size of pageSizeOptions; track size) {
+                <option [value]="size">{{ size }}</option>
+              }
+            </select>
+          </div>
+        </div>
+
+        <div class="pagination-controls">
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm"
+            (click)="goToPage(pageInfo.page - 1)"
+            [disabled]="pageInfo.page === 0 || loading"
+            aria-label="Previous page"
+          >
+            &laquo; Previous
+          </button>
+
+          <span class="page-number-display" aria-current="page">
+            Page {{ pageInfo.page + 1 }} of {{ pageInfo.totalPages || 1 }}
+          </span>
+
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm"
+            (click)="goToPage(pageInfo.page + 1)"
+            [disabled]="!pageInfo.hasNext || pageInfo.page >= pageInfo.totalPages - 1 || loading"
+            aria-label="Next page"
+          >
+            Next &raquo;
+          </button>
+        </div>
+      </footer>
+    } @else {
+      <!-- Empty State -->
+      <div class="empty-state-card">
+        <div class="empty-icon" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="48" height="48">
+            <path d="M12 2a5 5 0 105 5 5 5 0 00-5-5zm0 8a3 3 0 113-3 3 3 0 01-3 3zm9 11v-1a7 7 0 00-7-7h-4a7 7 0 00-7 7v1h18z" />
+          </svg>
+        </div>
+        <h2 class="empty-title">No employees found</h2>
+        <p class="empty-desc">
+          @if (hasActiveFilters()) {
+            No employees matched your active search or filter criteria. Try adjusting or clearing your filters.
+          } @else {
+            The employee directory is currently empty. Get started by adding your first employee.
+          }
+        </p>
+        <div class="empty-actions">
+          @if (hasActiveFilters()) {
+            <button type="button" class="btn btn-secondary" (click)="resetFilters()">Clear Filters</button>
+          } @else {
+            <button type="button" class="btn btn-primary" (click)="openCreateModal()">Add Employee</button>
+          }
+        </div>
+      </div>
+    }
+  }
+
+  <!-- ================= CREATE EMPLOYEE MODAL ================= -->
+  @if (showCreateModal) {
+    <div class="modal-backdrop" (click)="closeCreateModal()">
+      <div
+        class="modal-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="create-modal-title"
+        (click)="$event.stopPropagation()"
+      >
+        <header class="modal-header">
+          <h2 id="create-modal-title" class="modal-title">Create New Employee</h2>
+          <button
+            type="button"
+            class="modal-close-btn"
+            (click)="closeCreateModal()"
+            [disabled]="savingCreate"
+            aria-label="Close modal"
+          >
+            &times;
+          </button>
+        </header>
+
+        <form [formGroup]="createForm" (ngSubmit)="submitCreate()" novalidate>
+          <div class="modal-body">
+            @if (createFormError) {
+              <div class="modal-error-alert" role="alert">
+                <strong>{{ createFormError }}</strong>
+                @if (createFormDetails.length > 0) {
+                  <ul class="error-detail-list">
+                    @for (det of createFormDetails; track det) {
+                      <li>{{ det }}</li>
+                    }
+                  </ul>
+                }
+              </div>
+            }
+
+            <div class="form-grid">
+              <!-- Employee Number -->
+              <div class="form-group">
+                <label for="create-emp-num" class="form-label">
+                  Employee Number <span class="required-star">*</span>
+                </label>
+                <input
+                  id="create-emp-num"
+                  type="text"
+                  class="form-control"
+                  formControlName="employeeNumber"
+                  placeholder="e.g. EMP-1001"
+                  maxlength="50"
+                />
+                @if (createForm.get('employeeNumber')?.invalid && (createForm.get('employeeNumber')?.touched || createForm.get('employeeNumber')?.dirty)) {
+                  <p class="field-error" role="alert">
+                    @if (createForm.get('employeeNumber')?.errors?.['required']) {
+                      Employee number is required.
+                    }
+                    @if (createForm.get('employeeNumber')?.errors?.['maxlength']) {
+                      Employee number cannot exceed 50 characters.
+                    }
+                  </p>
+                }
+              </div>
+
+              <!-- Country -->
+              <div class="form-group">
+                <label for="create-country" class="form-label">
+                  Country <span class="required-star">*</span>
+                </label>
+                <select id="create-country" class="form-control" formControlName="countryCode">
+                  <option value="" disabled>Select country</option>
+                  @for (c of supportedCountries; track c.code) {
+                    <option [value]="c.code">{{ c.code }} - {{ c.name }} ({{ c.currencyCode }})</option>
+                  }
+                </select>
+                @if (createForm.get('countryCode')?.invalid && (createForm.get('countryCode')?.touched || createForm.get('countryCode')?.dirty)) {
+                  <p class="field-error" role="alert">Country is required.</p>
+                }
+              </div>
+
+              <!-- First Name -->
+              <div class="form-group">
+                <label for="create-first-name" class="form-label">
+                  First Name <span class="required-star">*</span>
+                </label>
+                <input
+                  id="create-first-name"
+                  type="text"
+                  class="form-control"
+                  formControlName="firstName"
+                  placeholder="e.g. Jane"
+                  maxlength="100"
+                />
+                @if (createForm.get('firstName')?.invalid && (createForm.get('firstName')?.touched || createForm.get('firstName')?.dirty)) {
+                  <p class="field-error" role="alert">
+                    @if (createForm.get('firstName')?.errors?.['required']) {
+                      First name is required.
+                    }
+                    @if (createForm.get('firstName')?.errors?.['maxlength']) {
+                      First name cannot exceed 100 characters.
+                    }
+                  </p>
+                }
+              </div>
+
+              <!-- Last Name -->
+              <div class="form-group">
+                <label for="create-last-name" class="form-label">
+                  Last Name <span class="required-star">*</span>
+                </label>
+                <input
+                  id="create-last-name"
+                  type="text"
+                  class="form-control"
+                  formControlName="lastName"
+                  placeholder="e.g. Doe"
+                  maxlength="100"
+                />
+                @if (createForm.get('lastName')?.invalid && (createForm.get('lastName')?.touched || createForm.get('lastName')?.dirty)) {
+                  <p class="field-error" role="alert">
+                    @if (createForm.get('lastName')?.errors?.['required']) {
+                      Last name is required.
+                    }
+                    @if (createForm.get('lastName')?.errors?.['maxlength']) {
+                      Last name cannot exceed 100 characters.
+                    }
+                  </p>
+                }
+              </div>
+
+              <!-- Email -->
+              <div class="form-group full-width">
+                <label for="create-email" class="form-label">
+                  Work Email <span class="required-star">*</span>
+                </label>
+                <input
+                  id="create-email"
+                  type="email"
+                  class="form-control"
+                  formControlName="email"
+                  placeholder="e.g. jane.doe@company.com"
+                  maxlength="255"
+                />
+                @if (createForm.get('email')?.invalid && (createForm.get('email')?.touched || createForm.get('email')?.dirty)) {
+                  <p class="field-error" role="alert">
+                    @if (createForm.get('email')?.errors?.['required']) {
+                      Work email is required.
+                    }
+                    @if (createForm.get('email')?.errors?.['email']) {
+                      Please enter a valid email address.
+                    }
+                    @if (createForm.get('email')?.errors?.['maxlength']) {
+                      Email cannot exceed 255 characters.
+                    }
+                  </p>
+                }
+              </div>
+
+              <!-- Job Title -->
+              <div class="form-group">
+                <label for="create-job-title" class="form-label">
+                  Job Title <span class="required-star">*</span>
+                </label>
+                <input
+                  id="create-job-title"
+                  type="text"
+                  class="form-control"
+                  formControlName="jobTitle"
+                  placeholder="e.g. Software Engineer"
+                  maxlength="100"
+                />
+                @if (createForm.get('jobTitle')?.invalid && (createForm.get('jobTitle')?.touched || createForm.get('jobTitle')?.dirty)) {
+                  <p class="field-error" role="alert">
+                    @if (createForm.get('jobTitle')?.errors?.['required']) {
+                      Job title is required.
+                    }
+                    @if (createForm.get('jobTitle')?.errors?.['maxlength']) {
+                      Job title cannot exceed 100 characters.
+                    }
+                  </p>
+                }
+              </div>
+
+              <!-- Department -->
+              <div class="form-group">
+                <label for="create-dept" class="form-label">Department (Optional)</label>
+                <input
+                  id="create-dept"
+                  type="text"
+                  class="form-control"
+                  formControlName="department"
+                  placeholder="e.g. Engineering"
+                  maxlength="100"
+                />
+                @if (createForm.get('department')?.errors?.['maxlength']) {
+                  <p class="field-error" role="alert">Department cannot exceed 100 characters.</p>
+                }
+              </div>
+
+              <!-- Joined Date -->
+              <div class="form-group">
+                <label for="create-joined" class="form-label">
+                  Joining Date <span class="required-star">*</span>
+                </label>
+                <input
+                  id="create-joined"
+                  type="date"
+                  class="form-control"
+                  formControlName="joinedAt"
+                />
+                @if (createForm.get('joinedAt')?.invalid && (createForm.get('joinedAt')?.touched || createForm.get('joinedAt')?.dirty)) {
+                  <p class="field-error" role="alert">Joining date is required.</p>
+                }
+              </div>
+
+              <!-- Termination Date -->
+              <div class="form-group">
+                <label for="create-terminated" class="form-label">Termination Date (Optional)</label>
+                <input
+                  id="create-terminated"
+                  type="date"
+                  class="form-control"
+                  formControlName="terminatedAt"
+                />
+              </div>
+
+              <!-- Cross-field date validation error -->
+              @if (createForm.errors?.['terminationBeforeJoining']) {
+                <div class="form-group full-width">
+                  <p class="field-error" role="alert">
+                    Termination date cannot be before joining date.
+                  </p>
+                </div>
+              }
+            </div>
+          </div>
+
+          <footer class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              (click)="closeCreateModal()"
+              [disabled]="savingCreate"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              class="btn btn-primary"
+              [disabled]="savingCreate"
+            >
+              @if (savingCreate) {
+                <span class="btn-spinner" aria-hidden="true"></span>
+                <span>Creating...</span>
+              } @else {
+                <span>Create Employee</span>
+              }
+            </button>
+          </footer>
+        </form>
+      </div>
+    </div>
+  }
+
+  <!-- ================= EDIT EMPLOYEE MODAL ================= -->
+  @if (showEditModal && selectedEmployee) {
+    <div class="modal-backdrop" (click)="closeEditModal()">
+      <div
+        class="modal-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="edit-modal-title"
+        (click)="$event.stopPropagation()"
+      >
+        <header class="modal-header">
+          <h2 id="edit-modal-title" class="modal-title">Edit Employee Details</h2>
+          <button
+            type="button"
+            class="modal-close-btn"
+            (click)="closeEditModal()"
+            [disabled]="savingEdit"
+            aria-label="Close modal"
+          >
+            &times;
+          </button>
+        </header>
+
+        <form [formGroup]="editForm" (ngSubmit)="submitEdit()" novalidate>
+          <div class="modal-body">
+            @if (editFormError) {
+              <div class="modal-error-alert" role="alert">
+                <strong>{{ editFormError }}</strong>
+                @if (editFormDetails.length > 0) {
+                  <ul class="error-detail-list">
+                    @for (det of editFormDetails; track det) {
+                      <li>{{ det }}</li>
+                    }
+                  </ul>
+                }
+              </div>
+            }
+
+            <!-- Immutable Context Info Banner -->
+            <div class="immutable-banner">
+              <div class="immutable-item">
+                <span class="immutable-label">Employee #</span>
+                <span class="immutable-value">{{ selectedEmployee.employeeNumber }}</span>
+              </div>
+              <div class="immutable-item">
+                <span class="immutable-label">Country</span>
+                <span class="immutable-value">{{ getCountryName(selectedEmployee.countryCode) }}</span>
+              </div>
+              <div class="immutable-item">
+                <span class="immutable-label">Joined Date</span>
+                <span class="immutable-value">{{ selectedEmployee.joinedAt | date:'mediumDate' }}</span>
+              </div>
+            </div>
+
+            <div class="form-grid">
+              <!-- First Name -->
+              <div class="form-group">
+                <label for="edit-first-name" class="form-label">
+                  First Name <span class="required-star">*</span>
+                </label>
+                <input
+                  id="edit-first-name"
+                  type="text"
+                  class="form-control"
+                  formControlName="firstName"
+                  maxlength="100"
+                />
+                @if (editForm.get('firstName')?.invalid && (editForm.get('firstName')?.touched || editForm.get('firstName')?.dirty)) {
+                  <p class="field-error" role="alert">
+                    @if (editForm.get('firstName')?.errors?.['required']) {
+                      First name is required.
+                    }
+                    @if (editForm.get('firstName')?.errors?.['maxlength']) {
+                      First name cannot exceed 100 characters.
+                    }
+                  </p>
+                }
+              </div>
+
+              <!-- Last Name -->
+              <div class="form-group">
+                <label for="edit-last-name" class="form-label">
+                  Last Name <span class="required-star">*</span>
+                </label>
+                <input
+                  id="edit-last-name"
+                  type="text"
+                  class="form-control"
+                  formControlName="lastName"
+                  maxlength="100"
+                />
+                @if (editForm.get('lastName')?.invalid && (editForm.get('lastName')?.touched || editForm.get('lastName')?.dirty)) {
+                  <p class="field-error" role="alert">
+                    @if (editForm.get('lastName')?.errors?.['required']) {
+                      Last name is required.
+                    }
+                    @if (editForm.get('lastName')?.errors?.['maxlength']) {
+                      Last name cannot exceed 100 characters.
+                    }
+                  </p>
+                }
+              </div>
+
+              <!-- Email -->
+              <div class="form-group full-width">
+                <label for="edit-email" class="form-label">
+                  Work Email <span class="required-star">*</span>
+                </label>
+                <input
+                  id="edit-email"
+                  type="email"
+                  class="form-control"
+                  formControlName="email"
+                  maxlength="255"
+                />
+                @if (editForm.get('email')?.invalid && (editForm.get('email')?.touched || editForm.get('email')?.dirty)) {
+                  <p class="field-error" role="alert">
+                    @if (editForm.get('email')?.errors?.['required']) {
+                      Work email is required.
+                    }
+                    @if (editForm.get('email')?.errors?.['email']) {
+                      Please enter a valid email address.
+                    }
+                    @if (editForm.get('email')?.errors?.['maxlength']) {
+                      Email cannot exceed 255 characters.
+                    }
+                  </p>
+                }
+              </div>
+
+              <!-- Job Title -->
+              <div class="form-group">
+                <label for="edit-job-title" class="form-label">
+                  Job Title <span class="required-star">*</span>
+                </label>
+                <input
+                  id="edit-job-title"
+                  type="text"
+                  class="form-control"
+                  formControlName="jobTitle"
+                  maxlength="100"
+                />
+                @if (editForm.get('jobTitle')?.invalid && (editForm.get('jobTitle')?.touched || editForm.get('jobTitle')?.dirty)) {
+                  <p class="field-error" role="alert">
+                    @if (editForm.get('jobTitle')?.errors?.['required']) {
+                      Job title is required.
+                    }
+                    @if (editForm.get('jobTitle')?.errors?.['maxlength']) {
+                      Job title cannot exceed 100 characters.
+                    }
+                  </p>
+                }
+              </div>
+
+              <!-- Department -->
+              <div class="form-group">
+                <label for="edit-dept" class="form-label">Department (Optional)</label>
+                <input
+                  id="edit-dept"
+                  type="text"
+                  class="form-control"
+                  formControlName="department"
+                  maxlength="100"
+                />
+                @if (editForm.get('department')?.errors?.['maxlength']) {
+                  <p class="field-error" role="alert">Department cannot exceed 100 characters.</p>
+                }
+              </div>
+
+              <!-- Termination Date -->
+              <div class="form-group full-width">
+                <label for="edit-terminated" class="form-label">Termination Date (Optional)</label>
+                <input
+                  id="edit-terminated"
+                  type="date"
+                  class="form-control"
+                  formControlName="terminatedAt"
+                />
+              </div>
+
+              <!-- Cross-field date validation error -->
+              @if (editForm.errors?.['terminationBeforeJoining']) {
+                <div class="form-group full-width">
+                  <p class="field-error" role="alert">
+                    Termination date cannot be before joining date ({{ selectedEmployee.joinedAt }}).
+                  </p>
+                </div>
+              }
+            </div>
+          </div>
+
+          <footer class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              (click)="closeEditModal()"
+              [disabled]="savingEdit"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              class="btn btn-primary"
+              [disabled]="savingEdit"
+            >
+              @if (savingEdit) {
+                <span class="btn-spinner" aria-hidden="true"></span>
+                <span>Saving...</span>
+              } @else {
+                <span>Save Changes</span>
+              }
+            </button>
+          </footer>
+        </form>
+      </div>
+    </div>
+  }
+
+  <!-- ================= DELETE CONFIRMATION MODAL ================= -->
+  @if (showDeleteModal && employeeToDelete) {
+    <div class="modal-backdrop" (click)="closeDeleteModal()">
+      <div
+        class="modal-dialog modal-dialog-sm"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="delete-dialog-title"
+        aria-describedby="delete-dialog-desc"
+        (click)="$event.stopPropagation()"
+      >
+        <header class="modal-header">
+          <h2 id="delete-dialog-title" class="modal-title text-danger">Delete Employee</h2>
+          <button
+            type="button"
+            class="modal-close-btn"
+            (click)="closeDeleteModal()"
+            [disabled]="deleting"
+            aria-label="Close modal"
+          >
+            &times;
+          </button>
+        </header>
+
+        <div class="modal-body">
+          @if (deleteError) {
+            <div class="modal-error-alert" role="alert">
+              {{ deleteError }}
+            </div>
+          }
+
+          <p id="delete-dialog-desc" class="delete-warning-text">
+            Are you sure you want to delete
+            <strong>{{ employeeToDelete.firstName }} {{ employeeToDelete.lastName }}</strong>
+            ({{ employeeToDelete.employeeNumber }})?
+          </p>
+
+          <div class="delete-notice-box">
+            <svg class="notice-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="20" height="20" aria-hidden="true">
+              <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+            </svg>
+            <p class="notice-text">
+              This action <strong>soft-deletes</strong> the employee from active directory listings.
+              All historical compensation records and country reporting figures are safely preserved.
+            </p>
+          </div>
+        </div>
+
+        <footer class="modal-footer">
+          <button
+            type="button"
+            class="btn btn-secondary"
+            (click)="closeDeleteModal()"
+            [disabled]="deleting"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="btn btn-danger"
+            (click)="confirmDelete()"
+            [disabled]="deleting"
+          >
+            @if (deleting) {
+              <span class="btn-spinner" aria-hidden="true"></span>
+              <span>Deleting...</span>
+            } @else {
+              <span>Confirm Delete</span>
+            }
+          </button>
+        </footer>
+      </div>
+    </div>
+  }
+</div>
