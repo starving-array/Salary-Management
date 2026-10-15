@@ -39,3 +39,19 @@ dependencies {
 tasks.named('test') {
     useJUnitPlatform()
 }
+
+tasks.register('seedDemoData', org.springframework.boot.gradle.tasks.run.BootRun) {
+    group = 'application'
+    description = 'Populates the database with 10,000 deterministic fictional employees and compensation history.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.salarymanagement.salarymanagement.SalaryManagementApplication'
+    args = ['--seed.demo-data.enabled=true', '--seed.demo-data.exit-after-seed=true']
+}
+
+tasks.register('resetAndSeedDemoData', org.springframework.boot.gradle.tasks.run.BootRun) {
+    group = 'application'
+    description = 'Resets existing demo employees and re-populates with 10,000 deterministic fictional employees.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.salarymanagement.salarymanagement.SalaryManagementApplication'
+    args = ['--seed.demo-data.enabled=true', '--seed.demo-data.reset=true', '--seed.demo-data.confirm=true', '--seed.demo-data.exit-after-seed=true']
+}
