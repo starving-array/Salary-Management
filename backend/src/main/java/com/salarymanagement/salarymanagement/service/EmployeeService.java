@@ -2,6 +2,7 @@ package com.salarymanagement.salarymanagement.service;
 
 import com.salarymanagement.salarymanagement.dto.request.CreateEmployeeRequest;
 import com.salarymanagement.salarymanagement.dto.request.UpdateEmployeeRequest;
+import com.salarymanagement.salarymanagement.dto.response.EmployeePageResponse;
 import com.salarymanagement.salarymanagement.dto.response.EmployeeResponse;
 import com.salarymanagement.salarymanagement.entity.Country;
 import com.salarymanagement.salarymanagement.entity.Employee;
@@ -11,10 +12,17 @@ import com.salarymanagement.salarymanagement.exception.ResourceNotFoundException
 import com.salarymanagement.salarymanagement.mapper.EmployeeMapper;
 import com.salarymanagement.salarymanagement.repository.CountryRepository;
 import com.salarymanagement.salarymanagement.repository.EmployeeRepository;
+import com.salarymanagement.salarymanagement.repository.specification.EmployeeSpecification;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -30,6 +38,38 @@ public class EmployeeService {
         this.employeeRepository = employeeRepository;
         this.countryRepository = countryRepository;
         this.employeeMapper = employeeMapper;
+    }
+
+    @Transactional(readOnly = true)
+    public EmployeePageResponse getEmployees(String search, String countryCode, String jobTitle, int page, int size) {
+        if (page < 0) {
+            throw new IllegalArgumentException("Page index must not be less than zero");
+        }
+        if (size < 1) {
+            throw new IllegalArgumentException("Page size must not be less than one");
+        }
+        if (size > 100) {
+            throw new IllegalArgumentException("Page size must not be greater than 100");
+        }
+
+        Specification<Employee> spec = EmployeeSpecification.filter(search, countryCode, jobTitle);
+        Sort sort = Sort.by(Sort.Order.asc("employeeNumber"), Sort.Order.asc("id"));
+        Pageable pageable = PageRequest.of(page, size, sort);
+
+        Page<Employee> employeePage = employeeRepository.findAll(spec, pageable);
+
+        List<EmployeeResponse> content = employeePage.getContent().stream()
+                .map(employeeMapper::toResponse)
+                .toList();
+
+        return new EmployeePageResponse(
+                content,
+                employeePage.getTotalElements(),
+                employeePage.getTotalPages(),
+                employeePage.getNumber(),
+                employeePage.getSize(),
+                employeePage.hasNext()
+        );
     }
 
     @Transactional

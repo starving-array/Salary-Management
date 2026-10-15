@@ -2,6 +2,7 @@ package com.salarymanagement.salarymanagement.service;
 
 import com.salarymanagement.salarymanagement.dto.request.CreateEmployeeRequest;
 import com.salarymanagement.salarymanagement.dto.request.UpdateEmployeeRequest;
+import com.salarymanagement.salarymanagement.dto.response.EmployeePageResponse;
 import com.salarymanagement.salarymanagement.dto.response.EmployeeResponse;
 import com.salarymanagement.salarymanagement.entity.Country;
 import com.salarymanagement.salarymanagement.entity.Employee;
@@ -19,9 +20,13 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -509,4 +514,69 @@ class EmployeeServiceTests {
         assertEquals("Employee not found with id: " + employeeId, ex.getMessage());
         verify(employeeRepository, never()).save(any());
     }
+
+    @Test
+    @DisplayName("should return paginated employees successfully")
+    void shouldReturnPaginatedEmployeesSuccessfully() {
+        Employee emp = new Employee(
+                UUID.randomUUID(),
+                "EMP001",
+                "Alice",
+                "Smith",
+                "alice@example.com",
+                country,
+                "Engineer",
+                "IT",
+                LocalDate.of(2025, 1, 1),
+                null,
+                null
+        );
+
+        when(employeeRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(emp)));
+
+        EmployeePageResponse response = employeeService.getEmployees("Alice", "US", "Engineer", 0, 20);
+
+        assertNotNull(response);
+        assertEquals(1, response.getContent().size());
+        assertEquals("EMP001", response.getContent().get(0).getEmployeeNumber());
+        assertEquals(1L, response.getTotalElements());
+        assertEquals(1, response.getTotalPages());
+        assertEquals(0, response.getPage());
+        assertEquals(1, response.getSize());
+        assertEquals(false, response.isHasNext());
+    }
+
+    @Test
+    @DisplayName("should throw IllegalArgumentException when page index is negative")
+    void shouldThrowExceptionWhenPageIsNegative() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                employeeService.getEmployees(null, null, null, -1, 20)
+        );
+        assertEquals("Page index must not be less than zero", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("should throw IllegalArgumentException when page size is less than one")
+    void shouldThrowExceptionWhenSizeIsLessThanOne() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                employeeService.getEmployees(null, null, null, 0, 0)
+        );
+        assertEquals("Page size must not be less than one", ex.getMessage());
+
+        IllegalArgumentException ex2 = assertThrows(IllegalArgumentException.class, () ->
+                employeeService.getEmployees(null, null, null, 0, -5)
+        );
+        assertEquals("Page size must not be less than one", ex2.getMessage());
+    }
+
+    @Test
+    @DisplayName("should throw IllegalArgumentException when page size exceeds maximum limit of 100")
+    void shouldThrowExceptionWhenSizeExceedsMaximum() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                employeeService.getEmployees(null, null, null, 0, 101)
+        );
+        assertEquals("Page size must not be greater than 100", ex.getMessage());
+    }
 }
+

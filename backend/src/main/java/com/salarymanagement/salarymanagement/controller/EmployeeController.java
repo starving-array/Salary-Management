@@ -2,6 +2,7 @@ package com.salarymanagement.salarymanagement.controller;
 
 import com.salarymanagement.salarymanagement.dto.request.CreateEmployeeRequest;
 import com.salarymanagement.salarymanagement.dto.request.UpdateEmployeeRequest;
+import com.salarymanagement.salarymanagement.dto.response.EmployeePageResponse;
 import com.salarymanagement.salarymanagement.dto.response.EmployeeResponse;
 import com.salarymanagement.salarymanagement.service.EmployeeService;
 import jakarta.validation.Valid;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
@@ -27,6 +29,17 @@ public class EmployeeController {
 
     public EmployeeController(EmployeeService employeeService) {
         this.employeeService = employeeService;
+    }
+
+    @GetMapping
+    public ResponseEntity<EmployeePageResponse> getEmployees(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String countryCode,
+            @RequestParam(required = false) String jobTitle,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        EmployeePageResponse response = employeeService.getEmployees(search, countryCode, jobTitle, page, size);
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping

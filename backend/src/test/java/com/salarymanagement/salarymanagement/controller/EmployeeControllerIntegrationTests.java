@@ -27,6 +27,7 @@ import java.util.UUID;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -695,4 +696,215 @@ class EmployeeControllerIntegrationTests {
                 .andExpect(jsonPath("$.error").value("Not Found"))
                 .andExpect(jsonPath("$.message").value("Employee not found with id: " + randomId));
     }
+
+    private Employee createDirectoryEmployee(String empNumber, String firstName, String lastName,
+                                             String email, Country country, String jobTitle,
+                                             Instant deletedAt) {
+        Employee employee = new Employee(
+                UUID.randomUUID(),
+                empNumber,
+                firstName,
+                lastName,
+                email,
+                country,
+                jobTitle,
+                "Engineering",
+                LocalDate.of(2025, 1, 1),
+                null,
+                deletedAt
+        );
+        return employeeRepository.save(employee);
+    }
+
+    @Test
+    @DisplayName("should return default paginated employees sorted by employee number ascending")
+    void shouldReturnDefaultPaginatedEmployeesSortedByEmployeeNumberAsc() throws Exception {
+        createDirectoryEmployee("EMP_DIR_03", "Charlie", "Brown", "charlie.dir@example.com", countryUS, "Developer", null);
+        createDirectoryEmployee("EMP_DIR_01", "Alice", "Wonderland", "alice.dir@example.com", countryUS, "Architect", null);
+        createDirectoryEmployee("EMP_DIR_02", "Bob", "Builder", "bob.dir@example.com", countryUS, "Engineer", null);
+
+        mockMvc.perform(get("/api/v1/employees")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(3))
+                .andExpect(jsonPath("$.totalPages").value(1))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(20))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.content", hasSize(3)))
+                .andExpect(jsonPath("$.content[0].employeeNumber").value("EMP_DIR_01"))
+                .andExpect(jsonPath("$.content[1].employeeNumber").value("EMP_DIR_02"))
+                .andExpect(jsonPath("$.content[2].employeeNumber").value("EMP_DIR_03"));
+    }
+
+    @Test
+    @DisplayName("should search partially and case-insensitively across employeeNumber, firstName, lastName, and email")
+    void shouldSearchAcrossEmployeeNumberFirstLastAndEmailCaseInsensitively() throws Exception {
+        createDirectoryEmployee("EMP_ALPHA_10", "Ada", "Lovelace", "ada.lovelace@math.org", countryUS, "Scientist", null);
+        createDirectoryEmployee("EMP_BETA_20", "Charles", "Babbage", "charles@computing.org", countryUS, "Inventor", null);
+
+        // Search by partial employee number (case-insensitive)
+        mockMvc.perform(get("/api/v1/employees").param("search", "alpha"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].employeeNumber").value("EMP_ALPHA_10"));
+
+        // Search by partial first name
+        mockMvc.perform(get("/api/v1/employees").param("search", "ADA"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].firstName").value("Ada"));
+
+        // Search by partial last name
+        mockMvc.perform(get("/api/v1/employees").param("search", "babb"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].lastName").value("Babbage"));
+
+        // Search by partial email
+        mockMvc.perform(get("/api/v1/employees").param("search", "math.org"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].email").value("ada.lovelace@math.org"));
+    }
+
+    @Test
+    @DisplayName("should filter by country and job title individually and combined")
+    void shouldFilterByCountryCodeAndJobTitleIndividuallyAndCombined() throws Exception {
+        Country countryGB = countryRepository.findById("GB")
+                .orElseGet(() -> countryRepository.save(new Country("GB", "United Kingdom", "GBP")));
+
+        createDirectoryEmployee("EMP_FLT_01", "Flt1", "One", "flt1@example.com", countryUS, "Backend Engineer", null);
+        createDirectoryEmployee("EMP_FLT_02", "Flt2", "Two", "flt2@example.com", countryUS, "Frontend Engineer", null);
+        createDirectoryEmployee("EMP_FLT_03", "Flt3", "Three", "flt3@example.com", countryGB, "Backend Engineer", null);
+
+        // Filter countryCode=US
+        mockMvc.perform(get("/api/v1/employees").param("countryCode", "US"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(2))
+                .andExpect(jsonPath("$.content[0].countryCode").value("US"))
+                .andExpect(jsonPath("$.content[1].countryCode").value("US"));
+
+        // Filter countryCode=us (case-insensitive)
+        mockMvc.perform(get("/api/v1/employees").param("countryCode", "us"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(2));
+
+        // Filter jobTitle=Backend Engineer
+        mockMvc.perform(get("/api/v1/employees").param("jobTitle", "Backend Engineer"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(2))
+                .andExpect(jsonPath("$.content[0].jobTitle").value("Backend Engineer"))
+                .andExpect(jsonPath("$.content[1].jobTitle").value("Backend Engineer"));
+
+        // Combined filter countryCode=US and jobTitle=Backend Engineer
+        mockMvc.perform(get("/api/v1/employees")
+                        .param("countryCode", "US")
+                        .param("jobTitle", "Backend Engineer"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].employeeNumber").value("EMP_FLT_01"));
+
+        // Combined filter countryCode=GB and jobTitle=Frontend Engineer (no match)
+        mockMvc.perform(get("/api/v1/employees")
+                        .param("countryCode", "GB")
+                        .param("jobTitle", "Frontend Engineer"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(0))
+                .andExpect(jsonPath("$.content", hasSize(0)));
+    }
+
+    @Test
+    @DisplayName("should exclude soft-deleted employees from directory results")
+    void shouldExcludeSoftDeletedEmployeesFromDirectory() throws Exception {
+        createDirectoryEmployee("EMP_ACT_01", "Active", "Employee", "active.dir@example.com", countryUS, "Dev", null);
+        createDirectoryEmployee("EMP_DEL_02", "Deleted", "Employee", "deleted.dir@example.com", countryUS, "Dev", Instant.now());
+
+        mockMvc.perform(get("/api/v1/employees"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].employeeNumber").value("EMP_ACT_01"));
+    }
+
+    @Test
+    @DisplayName("should handle pagination parameters and hasNext flag accurately")
+    void shouldHandlePaginationParametersAndHasNextFlag() throws Exception {
+        for (int i = 1; i <= 5; i++) {
+            createDirectoryEmployee("EMP_PAGE_" + i, "Name" + i, "Last" + i, "page" + i + "@example.com", countryUS, "Dev", null);
+        }
+
+        // Page 0 (size 2) -> elements 1, 2 (hasNext = true)
+        mockMvc.perform(get("/api/v1/employees").param("page", "0").param("size", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(2))
+                .andExpect(jsonPath("$.totalElements").value(5))
+                .andExpect(jsonPath("$.totalPages").value(3))
+                .andExpect(jsonPath("$.hasNext").value(true))
+                .andExpect(jsonPath("$.content", hasSize(2)))
+                .andExpect(jsonPath("$.content[0].employeeNumber").value("EMP_PAGE_1"))
+                .andExpect(jsonPath("$.content[1].employeeNumber").value("EMP_PAGE_2"));
+
+        // Page 1 (size 2) -> elements 3, 4 (hasNext = true)
+        mockMvc.perform(get("/api/v1/employees").param("page", "1").param("size", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(1))
+                .andExpect(jsonPath("$.size").value(2))
+                .andExpect(jsonPath("$.hasNext").value(true))
+                .andExpect(jsonPath("$.content", hasSize(2)))
+                .andExpect(jsonPath("$.content[0].employeeNumber").value("EMP_PAGE_3"))
+                .andExpect(jsonPath("$.content[1].employeeNumber").value("EMP_PAGE_4"));
+
+        // Page 2 (size 2) -> element 5 (hasNext = false)
+        mockMvc.perform(get("/api/v1/employees").param("page", "2").param("size", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(2))
+                .andExpect(jsonPath("$.size").value(2))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].employeeNumber").value("EMP_PAGE_5"));
+    }
+
+    @Test
+    @DisplayName("should return empty page when no employees match filters")
+    void shouldReturnEmptyPageWhenNoEmployeesMatch() throws Exception {
+        createDirectoryEmployee("EMP_EXIST_01", "Exist", "One", "exist@example.com", countryUS, "Dev", null);
+
+        mockMvc.perform(get("/api/v1/employees").param("search", "NonExistentKeyword"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(0))
+                .andExpect(jsonPath("$.totalPages").value(0))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.content", hasSize(0)));
+    }
+
+    @Test
+    @DisplayName("should return 400 Bad Request for invalid pagination parameters")
+    void shouldReturnBadRequestForInvalidPaginationParameters() throws Exception {
+        // Negative page index
+        mockMvc.perform(get("/api/v1/employees").param("page", "-1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value(containsString("Page index must not be less than zero")));
+
+        // Page size less than 1
+        mockMvc.perform(get("/api/v1/employees").param("size", "0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value(containsString("Page size must not be less than one")));
+
+        // Page size greater than 100
+        mockMvc.perform(get("/api/v1/employees").param("size", "101"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value(containsString("Page size must not be greater than 100")));
+
+        // Non-numeric parameter
+        mockMvc.perform(get("/api/v1/employees").param("page", "invalid"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value(containsString("Invalid parameter value for: page")));
+    }
 }
+
