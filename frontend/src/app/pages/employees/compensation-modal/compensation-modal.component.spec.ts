@@ -1,6 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
+import { SimpleChange } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { ApiErrorService } from '../../../core/services/api-error.service';
 import { CompensationApiService } from '../../../core/services/compensation-api.service';
 import { CompensationRecord } from '../../../models/compensation.model';
@@ -110,14 +111,17 @@ describe('CompensationModalComponent', () => {
       compensationApiService.getCompensationHistory.mockReturnValue(of([]));
       fixture.detectChanges();
 
+      expect(component.loading).toBe(false);
       expect(component.hasHistory).toBe(false);
+      expect(component.records).toEqual([]);
       const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.querySelector('.loading-state')).toBeFalsy();
       expect(compiled.querySelector('.empty-history-box')).toBeTruthy();
       expect(compiled.querySelector('.initial-salary-form')).toBeTruthy();
       expect(compiled.querySelector('.data-table')).toBeFalsy();
     });
 
-    it('should display error banner and allow retry on API failure', () => {
+    it('should display error banner, clear loading, and allow retry on API failure', () => {
       compensationApiService.getCompensationHistory.mockReturnValue(
         throwError(() => new HttpErrorResponse({
           status: 500,
@@ -128,10 +132,12 @@ describe('CompensationModalComponent', () => {
 
       fixture.detectChanges();
 
+      expect(component.loading).toBe(false);
       expect(component.historyError).toBe('Database connection failed');
       const errorBanner = fixture.nativeElement.querySelector('.error-banner');
       expect(errorBanner).toBeTruthy();
       expect(errorBanner.textContent).toContain('Database connection failed');
+      expect(fixture.nativeElement.querySelector('.loading-container')).toBeFalsy();
 
       // Retry
       compensationApiService.getCompensationHistory.mockReturnValue(of([mockRecord1]));
@@ -139,11 +145,12 @@ describe('CompensationModalComponent', () => {
       retryBtn.click();
       fixture.detectChanges();
 
+      expect(component.loading).toBe(false);
       expect(component.historyError).toBeNull();
       expect(component.records.length).toBe(1);
     });
 
-    it('should display friendly error when employee is not found', () => {
+    it('should display friendly error and clear loading when employee is not found', () => {
       compensationApiService.getCompensationHistory.mockReturnValue(
         throwError(() => new HttpErrorResponse({
           status: 404,
@@ -154,7 +161,143 @@ describe('CompensationModalComponent', () => {
 
       fixture.detectChanges();
 
+      expect(component.loading).toBe(false);
       expect(component.historyError).toContain('Employee not found');
+      expect(fixture.nativeElement.querySelector('.loading-container')).toBeFalsy();
+    });
+  });
+
+  describe('Loading, In-Flight Request and Employee Switching Lifecycle', () => {
+    it('should show loading spinner during pending request and clear loading once response arrives', () => {
+      const subject = new Subject<CompensationRecord[]>();
+      compensationApiService.getCompensationHistory.mockReturnValue(subject.asObservable());
+
+      fixture.detectChanges();
+
+      expect(component.loading).toBe(true);
+      expect(fixture.nativeElement.querySelector('.loading-container')).toBeTruthy();
+      expect(fixture.nativeElement.querySelector('.data-table')).toBeFalsy();
+      expect(fixture.nativeElement.querySelector('.empty-history-box')).toBeFalsy();
+
+      // Emit empty response
+      subject.next([]);
+      subject.complete();
+      fixture.detectChanges();
+
+      expect(component.loading).toBe(false);
+      expect(fixture.nativeElement.querySelector('.loading-container')).toBeFalsy();
+      expect(fixture.nativeElement.querySelector('.empty-history-box')).toBeTruthy();
+    });
+
+    it('should clear loading state when pending request fails', () => {
+      const subject = new Subject<CompensationRecord[]>();
+      compensationApiService.getCompensationHistory.mockReturnValue(subject.asObservable());
+
+      fixture.detectChanges();
+      expect(component.loading).toBe(true);
+
+      subject.error(new HttpErrorResponse({
+        status: 500,
+        statusText: 'Internal Server Error',
+        error: { message: 'Network timeout' }
+      }));
+      fixture.detectChanges();
+
+      expect(component.loading).toBe(false);
+      expect(component.historyError).toBe('Network timeout');
+      expect(fixture.nativeElement.querySelector('.loading-container')).toBeFalsy();
+      expect(fixture.nativeElement.querySelector('.error-banner')).toBeTruthy();
+    });
+
+    it('should unsubscribe and ignore in-flight response when modal is closed while request is pending', () => {
+      const subject = new Subject<CompensationRecord[]>();
+      compensationApiService.getCompensationHistory.mockReturnValue(subject.asObservable());
+
+      fixture.detectChanges();
+      expect(component.loading).toBe(true);
+
+      let closeEmitted = false;
+      component.close.subscribe(() => closeEmitted = true);
+
+      component.closeModal();
+      expect(closeEmitted).toBe(true);
+
+      // Late response arrives from slow network after modal is closed
+      subject.next([mockRecord1]);
+      subject.complete();
+
+      // Component records should still be empty because subscription was cancelled
+      expect(component.records).toEqual([]);
+    });
+
+    it('should unsubscribe in-flight request when component is destroyed', () => {
+      const subject = new Subject<CompensationRecord[]>();
+      compensationApiService.getCompensationHistory.mockReturnValue(subject.asObservable());
+
+      fixture.detectChanges();
+      expect(component.loading).toBe(true);
+
+      component.ngOnDestroy();
+
+      subject.next([mockRecord1]);
+      subject.complete();
+
+      expect(component.records).toEqual([]);
+    });
+
+    it('should cancel previous request, reset state, and load new data when employee input changes', () => {
+      const subject1 = new Subject<CompensationRecord[]>();
+      const subject2 = new Subject<CompensationRecord[]>();
+
+      compensationApiService.getCompensationHistory.mockReturnValueOnce(subject1.asObservable());
+      fixture.detectChanges();
+
+      const mockEmployee2: Employee = {
+        id: '22222222-2222-2222-2222-222222222222',
+        employeeNumber: 'EMP-002',
+        firstName: 'Grace',
+        lastName: 'Hopper',
+        email: 'grace@example.com',
+        countryCode: 'US',
+        jobTitle: 'Rear Admiral',
+        department: 'Computing',
+        joinedAt: '2024-06-01',
+        terminatedAt: null
+      };
+
+      compensationApiService.getCompensationHistory.mockReturnValueOnce(subject2.asObservable());
+
+      component.employee = mockEmployee2;
+      component.ngOnChanges({
+        employee: new SimpleChange(mockEmployee, mockEmployee2, false)
+      });
+      fixture.detectChanges();
+
+      expect(compensationApiService.getCompensationHistory).toHaveBeenCalledWith(mockEmployee2.id);
+      expect(component.initialForm.get('effectiveFrom')?.value).toBe('2024-06-01');
+      expect(component.records).toEqual([]);
+
+      // Late emission from employee 1 should be ignored
+      subject1.next([mockRecord1]);
+      expect(component.records).toEqual([]);
+
+      // Emission from employee 2 should be accepted
+      const emp2Record: CompensationRecord = {
+        id: 'c-emp2',
+        employeeId: mockEmployee2.id,
+        annualSalary: 150000,
+        currencyCode: 'USD',
+        effectiveFrom: '2024-06-01',
+        effectiveTo: null,
+        createdAt: '2024-06-01T10:00:00Z'
+      };
+      subject2.next([emp2Record]);
+      subject2.complete();
+      fixture.detectChanges();
+
+      expect(component.loading).toBe(false);
+      expect(component.records.length).toBe(1);
+      expect(component.records[0].annualSalary).toBe(150000);
     });
   });
 

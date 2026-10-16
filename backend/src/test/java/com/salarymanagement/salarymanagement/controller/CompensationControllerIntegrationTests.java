@@ -91,8 +91,15 @@ class CompensationControllerIntegrationTests {
 
     @AfterEach
     void tearDown() {
-        compensationRecordRepository.deleteAll();
-        employeeRepository.deleteAll();
+        if (activeEmployee != null && activeEmployee.getId() != null) {
+            try {
+                compensationRecordRepository.deleteAll(compensationRecordRepository.findByEmployee_IdOrderByEffectiveFromAscCreatedAtAsc(activeEmployee.getId()));
+                if (employeeRepository.existsById(activeEmployee.getId())) {
+                    employeeRepository.deleteById(activeEmployee.getId());
+                }
+            } catch (Exception ignored) {
+            }
+        }
     }
 
     @Test
@@ -166,6 +173,14 @@ class CompensationControllerIntegrationTests {
                 .andExpect(jsonPath("$[2].effectiveFrom").value("2026-01-01"))
                 .andExpect(jsonPath("$[2].annualSalary").value(80000.00))
                 .andExpect(jsonPath("$[2].effectiveTo").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("should return HTTP 200 with empty array when active employee has no compensation records")
+    void shouldReturnEmptyArrayWhenEmployeeHasNoCompensationRecords() throws Exception {
+        mockMvc.perform(get("/api/v1/employees/{employeeId}/compensations", activeEmployee.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(0)));
     }
 
     @Test
@@ -335,6 +350,25 @@ class CompensationControllerIntegrationTests {
         mockMvc.perform(post("/api/v1/employees/{employeeId}/compensations", activeEmployee.getId())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404));
+    }
+
+    @Test
+    @DisplayName("should return 404 Not Found on GET compensation history for missing and soft-deleted employees")
+    void shouldReturnNotFoundOnGetCompensationHistoryForMissingAndSoftDeletedEmployees() throws Exception {
+        UUID missingId = UUID.randomUUID();
+
+        // Missing employee
+        mockMvc.perform(get("/api/v1/employees/{employeeId}/compensations", missingId))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404));
+
+        // Soft-deleted employee
+        activeEmployee.setDeletedAt(Instant.now());
+        employeeRepository.save(activeEmployee);
+
+        mockMvc.perform(get("/api/v1/employees/{employeeId}/compensations", activeEmployee.getId()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404));
     }

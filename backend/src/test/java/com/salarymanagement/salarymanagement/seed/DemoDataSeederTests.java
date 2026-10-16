@@ -4,6 +4,7 @@ import com.salarymanagement.salarymanagement.dto.response.CountryJobTitleSalaryR
 import com.salarymanagement.salarymanagement.dto.response.CountrySalarySummaryResponse;
 import com.salarymanagement.salarymanagement.service.ReportingService;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -42,9 +43,10 @@ class DemoDataSeederTests {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @BeforeAll
     @AfterAll
-    void tearDown() {
-        // Clean up demo data after test class finishes to leave test database clean
+    void cleanUpDemoData() {
+        // Clean up demo data before and after test class finishes to leave test database clean
         jdbcTemplate.execute("DELETE FROM compensation_record WHERE employee_id IN (SELECT id FROM employee WHERE employee_number LIKE 'EMP-%')");
         jdbcTemplate.execute("DELETE FROM employee WHERE employee_number LIKE 'EMP-%'");
     }

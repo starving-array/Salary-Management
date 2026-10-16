@@ -308,6 +308,39 @@ class CompensationServiceTests {
     }
 
     @Test
+    @DisplayName("should return empty list when employee has no compensation history")
+    void shouldReturnEmptyListWhenEmployeeHasNoCompensationHistory() {
+        when(employeeRepository.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(compensationRecordRepository.findByEmployee_IdOrderByEffectiveFromAscCreatedAtAsc(employeeId)).thenReturn(List.of());
+
+        List<CompensationResponse> history = compensationService.getCompensationHistory(employeeId);
+
+        assertNotNull(history);
+        assertTrue(history.isEmpty());
+    }
+
+    @Test
+    @DisplayName("should throw ResourceNotFoundException when retrieving history for soft-deleted employee")
+    void shouldThrowExceptionWhenRetrievingHistoryForSoftDeletedEmployee() {
+        employee.setDeletedAt(Instant.now());
+        when(employeeRepository.findById(employeeId)).thenReturn(Optional.of(employee));
+
+        assertThrows(ResourceNotFoundException.class, () ->
+                compensationService.getCompensationHistory(employeeId)
+        );
+    }
+
+    @Test
+    @DisplayName("should throw ResourceNotFoundException when retrieving history for non-existent employee")
+    void shouldThrowExceptionWhenRetrievingHistoryForNonExistentEmployee() {
+        when(employeeRepository.findById(employeeId)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () ->
+                compensationService.getCompensationHistory(employeeId)
+        );
+    }
+
+    @Test
     @DisplayName("should throw ResourceNotFoundException when employee is soft-deleted")
     void shouldThrowExceptionWhenEmployeeIsSoftDeleted() {
         employee.setDeletedAt(Instant.now());

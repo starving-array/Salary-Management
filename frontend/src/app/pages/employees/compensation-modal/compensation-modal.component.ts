@@ -1,6 +1,19 @@
 import { CommonModule, CurrencyPipe, DatePipe } from '@angular/common';
-import { Component, EventEmitter, HostListener, inject, Input, OnInit, Output } from '@angular/core';
+import {
+  ChangeDetectorRef,
+  Component,
+  EventEmitter,
+  HostListener,
+  inject,
+  Input,
+  OnChanges,
+  OnDestroy,
+  OnInit,
+  Output,
+  SimpleChanges
+} from '@angular/core';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { finalize, Subscription } from 'rxjs';
 import { ApiErrorService } from '../../../core/services/api-error.service';
 import { CompensationApiService } from '../../../core/services/compensation-api.service';
 import { ApiError } from '../../../models/api-error.model';
@@ -19,7 +32,7 @@ import { Employee } from '../../../models/employee.model';
   templateUrl: './compensation-modal.component.html',
   styleUrl: './compensation-modal.component.css'
 })
-export class CompensationModalComponent implements OnInit {
+export class CompensationModalComponent implements OnInit, OnChanges, OnDestroy {
   @Input({ required: true }) employee!: Employee;
   @Output() close = new EventEmitter<void>();
   @Output() compensationUpdated = new EventEmitter<void>();
@@ -27,11 +40,14 @@ export class CompensationModalComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly compensationApiService = inject(CompensationApiService);
   private readonly apiErrorService = inject(ApiErrorService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   records: CompensationRecord[] = [];
   loading = false;
   historyError: string | null = null;
   notificationMessage: string | null = null;
+  private notificationTimer: ReturnType<typeof setTimeout> | null = null;
+  private historySubscription: Subscription | null = null;
 
   // Initial Salary Form State
   savingInitial = false;
@@ -59,6 +75,28 @@ export class CompensationModalComponent implements OnInit {
     }
   }
 
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['employee'] && !changes['employee'].firstChange && this.employee) {
+      this.initialForm.patchValue({
+        effectiveFrom: this.employee.joinedAt
+      });
+      this.records = [];
+      this.historyError = null;
+      this.notificationMessage = null;
+      this.loadHistory();
+    }
+  }
+
+  ngOnDestroy(): void {
+    if (this.historySubscription) {
+      this.historySubscription.unsubscribe();
+      this.historySubscription = null;
+    }
+    if (this.notificationTimer) {
+      clearTimeout(this.notificationTimer);
+    }
+  }
+
   @HostListener('document:keydown.escape')
   onEscape(): void {
     if (!this.savingInitial && !this.savingChange) {
@@ -67,6 +105,10 @@ export class CompensationModalComponent implements OnInit {
   }
 
   closeModal(): void {
+    if (this.historySubscription) {
+      this.historySubscription.unsubscribe();
+      this.historySubscription = null;
+    }
     this.close.emit();
   }
 
@@ -93,25 +135,41 @@ export class CompensationModalComponent implements OnInit {
 
   loadHistory(): void {
     if (!this.employee) return;
+
+    if (this.historySubscription) {
+      this.historySubscription.unsubscribe();
+      this.historySubscription = null;
+    }
+
     this.loading = true;
     this.historyError = null;
+    this.cdr.markForCheck();
 
-    this.compensationApiService.getCompensationHistory(this.employee.id).subscribe({
-      next: (history) => {
-        // Backend returns records ordered by effectiveFrom ASC, createdAt ASC
-        this.records = history;
-        this.loading = false;
-      },
-      error: (err: unknown) => {
-        this.loading = false;
-        const parsed: ApiError = this.apiErrorService.parseError(err);
-        if (parsed.status === 404) {
-          this.historyError = 'Employee not found or has been removed from active records.';
-        } else {
-          this.historyError = parsed.message || 'Failed to load compensation history.';
+    this.historySubscription = this.compensationApiService.getCompensationHistory(this.employee.id)
+      .pipe(
+        finalize(() => {
+          this.loading = false;
+          this.cdr.markForCheck();
+        })
+      )
+      .subscribe({
+        next: (history) => {
+          // Backend returns records ordered by effectiveFrom ASC, createdAt ASC
+          this.records = history;
+          this.historyError = null;
+          this.cdr.markForCheck();
+        },
+        error: (err: unknown) => {
+          const parsed: ApiError = this.apiErrorService.parseError(err);
+          if (parsed.status === 404) {
+            this.historyError = 'Employee not found or has been removed from active records.';
+          } else {
+            this.historyError = parsed.message || 'Failed to load compensation history.';
+          }
+          this.records = [];
+          this.cdr.markForCheck();
         }
-      }
-    });
+      });
   }
 
   submitInitialSalary(): void {
@@ -122,6 +180,7 @@ export class CompensationModalComponent implements OnInit {
 
     this.savingInitial = true;
     this.initialError = null;
+    this.cdr.markForCheck();
 
     const raw = this.initialForm.value;
     const request: CreateCompensationRequest = {
@@ -129,20 +188,26 @@ export class CompensationModalComponent implements OnInit {
       effectiveFrom: raw.effectiveFrom
     };
 
-    this.compensationApiService.assignInitialSalary(this.employee.id, request).subscribe({
-      next: () => {
-        this.savingInitial = false;
-        this.setNotification('Initial compensation assigned successfully.');
-        this.initialForm.reset({ effectiveFrom: this.employee.joinedAt });
-        this.compensationUpdated.emit();
-        this.loadHistory();
-      },
-      error: (err: unknown) => {
-        this.savingInitial = false;
-        const parsed: ApiError = this.apiErrorService.parseError(err);
-        this.initialError = parsed.message || 'Failed to assign initial salary.';
-      }
-    });
+    this.compensationApiService.assignInitialSalary(this.employee.id, request)
+      .pipe(
+        finalize(() => {
+          this.savingInitial = false;
+          this.cdr.markForCheck();
+        })
+      )
+      .subscribe({
+        next: () => {
+          this.setNotification('Initial compensation assigned successfully.');
+          this.initialForm.reset({ effectiveFrom: this.employee.joinedAt });
+          this.compensationUpdated.emit();
+          this.loadHistory();
+        },
+        error: (err: unknown) => {
+          const parsed: ApiError = this.apiErrorService.parseError(err);
+          this.initialError = parsed.message || 'Failed to assign initial salary.';
+          this.cdr.markForCheck();
+        }
+      });
   }
 
   submitSalaryChange(): void {
@@ -153,6 +218,7 @@ export class CompensationModalComponent implements OnInit {
 
     this.savingChange = true;
     this.changeError = null;
+    this.cdr.markForCheck();
 
     const raw = this.changeForm.value;
     const request: ChangeSalaryRequest = {
@@ -160,32 +226,45 @@ export class CompensationModalComponent implements OnInit {
       effectiveFrom: raw.effectiveFrom
     };
 
-    this.compensationApiService.recordSalaryChange(this.employee.id, request).subscribe({
-      next: () => {
-        this.savingChange = false;
-        this.setNotification('Salary change recorded successfully.');
-        this.changeForm.reset();
-        this.compensationUpdated.emit();
-        this.loadHistory();
-      },
-      error: (err: unknown) => {
-        this.savingChange = false;
-        const parsed: ApiError = this.apiErrorService.parseError(err);
-        this.changeError = parsed.message || 'Failed to record salary change.';
-      }
-    });
+    this.compensationApiService.recordSalaryChange(this.employee.id, request)
+      .pipe(
+        finalize(() => {
+          this.savingChange = false;
+          this.cdr.markForCheck();
+        })
+      )
+      .subscribe({
+        next: () => {
+          this.setNotification('Salary change recorded successfully.');
+          this.changeForm.reset();
+          this.compensationUpdated.emit();
+          this.loadHistory();
+        },
+        error: (err: unknown) => {
+          const parsed: ApiError = this.apiErrorService.parseError(err);
+          this.changeError = parsed.message || 'Failed to record salary change.';
+          this.cdr.markForCheck();
+        }
+      });
   }
 
   setNotification(msg: string): void {
     this.notificationMessage = msg;
-    setTimeout(() => {
-      if (this.notificationMessage === msg) {
-        this.notificationMessage = null;
-      }
+    if (this.notificationTimer) {
+      clearTimeout(this.notificationTimer);
+    }
+    this.notificationTimer = setTimeout(() => {
+      this.notificationMessage = null;
+      this.cdr.markForCheck();
     }, 5000);
+    this.cdr.markForCheck();
   }
 
   dismissNotification(): void {
     this.notificationMessage = null;
+    if (this.notificationTimer) {
+      clearTimeout(this.notificationTimer);
+    }
+    this.cdr.markForCheck();
   }
 }
