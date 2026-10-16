@@ -67,6 +67,13 @@ export class EmployeesComponent implements OnInit, OnDestroy {
   readonly countryControl = new FormControl('', { nonNullable: true });
   readonly jobTitleControl = new FormControl('', { nonNullable: true });
 
+  // Job Title Autocomplete state
+  jobTitleSuggestions: string[] = [];
+  showJobTitleSuggestions = false;
+  loadingJobTitleSuggestions = false;
+  activeSuggestionIndex = -1;
+  private jobTitleBlurTimer: ReturnType<typeof setTimeout> | null = null;
+
   // Filter state & reload trigger
   readonly filterState$ = new BehaviorSubject<EmployeeFilterParams>({
     search: '',
@@ -141,6 +148,89 @@ export class EmployeesComponent implements OnInit, OnDestroy {
     this.selectedCompensationEmployee = null;
   }
 
+  get activeSuggestionId(): string | null {
+    if (this.showJobTitleSuggestions && this.activeSuggestionIndex >= 0) {
+      return `job-title-option-${this.activeSuggestionIndex}`;
+    }
+    return null;
+  }
+
+  selectJobTitleSuggestion(suggestion: string): void {
+    this.jobTitleControl.setValue(suggestion, { emitEvent: false });
+    this.closeJobTitleSuggestions();
+    this.updateFilter({ jobTitle: suggestion, page: 0 });
+    this.cdr.markForCheck();
+  }
+
+  closeJobTitleSuggestions(): void {
+    this.showJobTitleSuggestions = false;
+    this.jobTitleSuggestions = [];
+    this.activeSuggestionIndex = -1;
+    this.loadingJobTitleSuggestions = false;
+    this.cdr.markForCheck();
+  }
+
+  onJobTitleKeyDown(event: KeyboardEvent): void {
+    if (!this.showJobTitleSuggestions) {
+      if (event.key === 'ArrowDown' && this.jobTitleControl.value.trim().length >= 2) {
+        this.showJobTitleSuggestions = true;
+        this.cdr.markForCheck();
+      }
+      return;
+    }
+
+    switch (event.key) {
+      case 'ArrowDown':
+        event.preventDefault();
+        if (this.jobTitleSuggestions.length > 0) {
+          this.activeSuggestionIndex = (this.activeSuggestionIndex + 1) % this.jobTitleSuggestions.length;
+          this.cdr.markForCheck();
+        }
+        break;
+
+      case 'ArrowUp':
+        event.preventDefault();
+        if (this.jobTitleSuggestions.length > 0) {
+          this.activeSuggestionIndex = this.activeSuggestionIndex <= 0
+            ? this.jobTitleSuggestions.length - 1
+            : this.activeSuggestionIndex - 1;
+          this.cdr.markForCheck();
+        }
+        break;
+
+      case 'Enter':
+        if (this.activeSuggestionIndex >= 0 && this.activeSuggestionIndex < this.jobTitleSuggestions.length) {
+          event.preventDefault();
+          this.selectJobTitleSuggestion(this.jobTitleSuggestions[this.activeSuggestionIndex]);
+        }
+        break;
+
+      case 'Escape':
+        event.preventDefault();
+        event.stopPropagation();
+        this.closeJobTitleSuggestions();
+        break;
+    }
+  }
+
+  onJobTitleFocus(): void {
+    if (this.jobTitleControl.value.trim().length >= 2 && this.jobTitleSuggestions.length > 0) {
+      this.showJobTitleSuggestions = true;
+      this.cdr.markForCheck();
+    }
+  }
+
+  onJobTitleBlur(): void {
+    if (this.jobTitleBlurTimer) {
+      clearTimeout(this.jobTitleBlurTimer);
+    }
+    this.jobTitleBlurTimer = setTimeout(() => {
+      this.showJobTitleSuggestions = false;
+      this.activeSuggestionIndex = -1;
+      this.cdr.markForCheck();
+    }, 200);
+  }
+
   ngOnInit(): void {
     this.setupFilterListeners();
     this.setupDirectoryStream();
@@ -150,11 +240,16 @@ export class EmployeesComponent implements OnInit, OnDestroy {
     if (this.notificationTimer) {
       clearTimeout(this.notificationTimer);
     }
+    if (this.jobTitleBlurTimer) {
+      clearTimeout(this.jobTitleBlurTimer);
+    }
   }
 
   @HostListener('document:keydown.escape')
   onEscapePressed(): void {
-    if (this.selectedCompensationEmployee) {
+    if (this.showJobTitleSuggestions) {
+      this.closeJobTitleSuggestions();
+    } else if (this.selectedCompensationEmployee) {
       this.closeCompensationModal();
     } else if (this.showDeleteModal && !this.deleting) {
       this.closeDeleteModal();
@@ -183,13 +278,41 @@ export class EmployeesComponent implements OnInit, OnDestroy {
       this.updateFilter({ countryCode: value.trim(), page: 0 });
     });
 
-    // Debounce job title filter input modestly (300ms)
+    // Debounce job title filter input (300ms) and retrieve autocomplete suggestions
     this.jobTitleControl.valueChanges.pipe(
       debounceTime(300),
       distinctUntilChanged(),
       takeUntilDestroyed(this.destroyRef)
     ).subscribe(value => {
-      this.updateFilter({ jobTitle: value.trim(), page: 0 });
+      const trimmed = value.trim();
+      this.updateFilter({ jobTitle: trimmed, page: 0 });
+
+      if (trimmed.length >= 2) {
+        this.loadingJobTitleSuggestions = true;
+        this.showJobTitleSuggestions = true;
+        this.cdr.markForCheck();
+
+        this.employeeApiService.getJobTitles(trimmed, 10).subscribe({
+          next: (titles) => {
+            if (this.jobTitleControl.value.trim() === trimmed) {
+              this.jobTitleSuggestions = titles;
+              this.loadingJobTitleSuggestions = false;
+              this.activeSuggestionIndex = -1;
+              this.cdr.markForCheck();
+            }
+          },
+          error: () => {
+            if (this.jobTitleControl.value.trim() === trimmed) {
+              this.jobTitleSuggestions = [];
+              this.loadingJobTitleSuggestions = false;
+              this.activeSuggestionIndex = -1;
+              this.cdr.markForCheck();
+            }
+          }
+        });
+      } else {
+        this.closeJobTitleSuggestions();
+      }
     });
   }
 
@@ -254,6 +377,7 @@ export class EmployeesComponent implements OnInit, OnDestroy {
     this.searchControl.setValue('', { emitEvent: false });
     this.countryControl.setValue('', { emitEvent: false });
     this.jobTitleControl.setValue('', { emitEvent: false });
+    this.closeJobTitleSuggestions();
     const current = this.filterState$.getValue();
     this.filterState$.next({
       search: '',

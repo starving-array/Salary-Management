@@ -47,6 +47,20 @@ export class EmployeeApiService {
     );
   }
 
+  getJobTitles(search?: string, limit?: number): Observable<string[]> {
+    let params = new HttpParams();
+    if (search !== undefined && search !== null && search.trim().length > 0) {
+      params = params.set('search', search.trim());
+    }
+    if (limit !== undefined && limit !== null) {
+      params = params.set('limit', limit.toString());
+    }
+
+    return this.http.get<string[]>(`${this.baseUrl}/employees/job-titles`, { params }).pipe(
+      catchError(err => this.errorService.handleError(err))
+    );
+  }
+
   getEmployee(id: string): Observable<Employee> {
     return this.http.get<Employee>(`${this.baseUrl}/employees/${id}`).pipe(
       catchError(err => this.errorService.handleError(err))

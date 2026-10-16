@@ -724,6 +724,7 @@ class EmployeeControllerIntegrationTests {
         createDirectoryEmployee("EMP_DIR_02", "Bob", "Builder", "bob.dir@example.com", countryUS, "Engineer", null);
 
         mockMvc.perform(get("/api/v1/employees")
+                        .param("search", "EMP_DIR_")
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(3))
@@ -740,32 +741,32 @@ class EmployeeControllerIntegrationTests {
     @Test
     @DisplayName("should search partially and case-insensitively across employeeNumber, firstName, lastName, and email")
     void shouldSearchAcrossEmployeeNumberFirstLastAndEmailCaseInsensitively() throws Exception {
-        createDirectoryEmployee("EMP_ALPHA_10", "Ada", "Lovelace", "ada.lovelace@math.org", countryUS, "Scientist", null);
-        createDirectoryEmployee("EMP_BETA_20", "Charles", "Babbage", "charles@computing.org", countryUS, "Inventor", null);
+        createDirectoryEmployee("EMP_ALPHA_10", "AdaUniqAlpha", "LovelaceUniqAlpha", "ada.lovelace@mathuniq.org", countryUS, "Scientist", null);
+        createDirectoryEmployee("EMP_BETA_20", "CharlesUniqBeta", "BabbageUniqBeta", "charles@computinguniq.org", countryUS, "Inventor", null);
 
         // Search by partial employee number (case-insensitive)
-        mockMvc.perform(get("/api/v1/employees").param("search", "alpha"))
+        mockMvc.perform(get("/api/v1/employees").param("search", "alpha_10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.content[0].employeeNumber").value("EMP_ALPHA_10"));
 
         // Search by partial first name
-        mockMvc.perform(get("/api/v1/employees").param("search", "ADA"))
+        mockMvc.perform(get("/api/v1/employees").param("search", "ADAUNIQALPHA"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(1))
-                .andExpect(jsonPath("$.content[0].firstName").value("Ada"));
+                .andExpect(jsonPath("$.content[0].firstName").value("AdaUniqAlpha"));
 
         // Search by partial last name
-        mockMvc.perform(get("/api/v1/employees").param("search", "babb"))
+        mockMvc.perform(get("/api/v1/employees").param("search", "babbageuniq"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(1))
-                .andExpect(jsonPath("$.content[0].lastName").value("Babbage"));
+                .andExpect(jsonPath("$.content[0].lastName").value("BabbageUniqBeta"));
 
         // Search by partial email
-        mockMvc.perform(get("/api/v1/employees").param("search", "math.org"))
+        mockMvc.perform(get("/api/v1/employees").param("search", "mathuniq.org"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(1))
-                .andExpect(jsonPath("$.content[0].email").value("ada.lovelace@math.org"));
+                .andExpect(jsonPath("$.content[0].email").value("ada.lovelace@mathuniq.org"));
     }
 
     @Test
@@ -774,41 +775,41 @@ class EmployeeControllerIntegrationTests {
         Country countryGB = countryRepository.findById("GB")
                 .orElseGet(() -> countryRepository.save(new Country("GB", "United Kingdom", "GBP")));
 
-        createDirectoryEmployee("EMP_FLT_01", "Flt1", "One", "flt1@example.com", countryUS, "Backend Engineer", null);
-        createDirectoryEmployee("EMP_FLT_02", "Flt2", "Two", "flt2@example.com", countryUS, "Frontend Engineer", null);
-        createDirectoryEmployee("EMP_FLT_03", "Flt3", "Three", "flt3@example.com", countryGB, "Backend Engineer", null);
+        createDirectoryEmployee("EMP_FLT_01", "Flt1", "One", "flt1@example.com", countryUS, "Unique Backend Lead", null);
+        createDirectoryEmployee("EMP_FLT_02", "Flt2", "Two", "flt2@example.com", countryUS, "Unique Frontend Lead", null);
+        createDirectoryEmployee("EMP_FLT_03", "Flt3", "Three", "flt3@example.com", countryGB, "Unique Backend Lead", null);
 
-        // Filter countryCode=US
-        mockMvc.perform(get("/api/v1/employees").param("countryCode", "US"))
+        // Filter countryCode=US within EMP_FLT
+        mockMvc.perform(get("/api/v1/employees").param("search", "EMP_FLT").param("countryCode", "US"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(2))
                 .andExpect(jsonPath("$.content[0].countryCode").value("US"))
                 .andExpect(jsonPath("$.content[1].countryCode").value("US"));
 
         // Filter countryCode=us (case-insensitive)
-        mockMvc.perform(get("/api/v1/employees").param("countryCode", "us"))
+        mockMvc.perform(get("/api/v1/employees").param("search", "EMP_FLT").param("countryCode", "us"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(2));
 
-        // Filter jobTitle=Backend Engineer
-        mockMvc.perform(get("/api/v1/employees").param("jobTitle", "Backend Engineer"))
+        // Filter jobTitle=Unique Backend Lead
+        mockMvc.perform(get("/api/v1/employees").param("jobTitle", "Unique Backend Lead"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(2))
-                .andExpect(jsonPath("$.content[0].jobTitle").value("Backend Engineer"))
-                .andExpect(jsonPath("$.content[1].jobTitle").value("Backend Engineer"));
+                .andExpect(jsonPath("$.content[0].jobTitle").value("Unique Backend Lead"))
+                .andExpect(jsonPath("$.content[1].jobTitle").value("Unique Backend Lead"));
 
-        // Combined filter countryCode=US and jobTitle=Backend Engineer
+        // Combined filter countryCode=US and jobTitle=Unique Backend Lead
         mockMvc.perform(get("/api/v1/employees")
                         .param("countryCode", "US")
-                        .param("jobTitle", "Backend Engineer"))
+                        .param("jobTitle", "Unique Backend Lead"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.content[0].employeeNumber").value("EMP_FLT_01"));
 
-        // Combined filter countryCode=GB and jobTitle=Frontend Engineer (no match)
+        // Combined filter countryCode=GB and jobTitle=Unique Frontend Lead (no match)
         mockMvc.perform(get("/api/v1/employees")
                         .param("countryCode", "GB")
-                        .param("jobTitle", "Frontend Engineer"))
+                        .param("jobTitle", "Unique Frontend Lead"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(0))
                 .andExpect(jsonPath("$.content", hasSize(0)));
@@ -817,10 +818,10 @@ class EmployeeControllerIntegrationTests {
     @Test
     @DisplayName("should exclude soft-deleted employees from directory results")
     void shouldExcludeSoftDeletedEmployeesFromDirectory() throws Exception {
-        createDirectoryEmployee("EMP_ACT_01", "Active", "Employee", "active.dir@example.com", countryUS, "Dev", null);
-        createDirectoryEmployee("EMP_DEL_02", "Deleted", "Employee", "deleted.dir@example.com", countryUS, "Dev", Instant.now());
+        createDirectoryEmployee("EMP_ACT_01", "Active", "Employee", "active.dir.unique@example.com", countryUS, "Dev", null);
+        createDirectoryEmployee("EMP_DEL_02", "Deleted", "Employee", "deleted.dir.unique@example.com", countryUS, "Dev", Instant.now());
 
-        mockMvc.perform(get("/api/v1/employees"))
+        mockMvc.perform(get("/api/v1/employees").param("search", "dir.unique@example.com"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.content", hasSize(1)))
@@ -835,7 +836,7 @@ class EmployeeControllerIntegrationTests {
         }
 
         // Page 0 (size 2) -> elements 1, 2 (hasNext = true)
-        mockMvc.perform(get("/api/v1/employees").param("page", "0").param("size", "2"))
+        mockMvc.perform(get("/api/v1/employees").param("search", "EMP_PAGE_").param("page", "0").param("size", "2"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.page").value(0))
                 .andExpect(jsonPath("$.size").value(2))
@@ -847,7 +848,7 @@ class EmployeeControllerIntegrationTests {
                 .andExpect(jsonPath("$.content[1].employeeNumber").value("EMP_PAGE_2"));
 
         // Page 1 (size 2) -> elements 3, 4 (hasNext = true)
-        mockMvc.perform(get("/api/v1/employees").param("page", "1").param("size", "2"))
+        mockMvc.perform(get("/api/v1/employees").param("search", "EMP_PAGE_").param("page", "1").param("size", "2"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.page").value(1))
                 .andExpect(jsonPath("$.size").value(2))
@@ -857,7 +858,7 @@ class EmployeeControllerIntegrationTests {
                 .andExpect(jsonPath("$.content[1].employeeNumber").value("EMP_PAGE_4"));
 
         // Page 2 (size 2) -> element 5 (hasNext = false)
-        mockMvc.perform(get("/api/v1/employees").param("page", "2").param("size", "2"))
+        mockMvc.perform(get("/api/v1/employees").param("search", "EMP_PAGE_").param("page", "2").param("size", "2"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.page").value(2))
                 .andExpect(jsonPath("$.size").value(2))
@@ -905,6 +906,98 @@ class EmployeeControllerIntegrationTests {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.message").value(containsString("Invalid parameter value for: page")));
+    }
+
+    @Test
+    @DisplayName("should return distinct job titles sorted alphabetically ascending")
+    void shouldReturnDistinctJobTitlesSortedAsc() throws Exception {
+        createDirectoryEmployee("EMP_JT_01", "Alice", "Smith", "alice.jt1@example.com", countryUS, "AAA Architect", null);
+        createDirectoryEmployee("EMP_JT_02", "Bob", "Smith", "bob.jt2@example.com", countryUS, "AAA DevOps Engineer", null);
+        createDirectoryEmployee("EMP_JT_03", "Charlie", "Smith", "charlie.jt3@example.com", countryUS, "AAA Software Engineer", null);
+        createDirectoryEmployee("EMP_JT_04", "David", "Smith", "david.jt4@example.com", countryUS, "AAA Architect", null); // duplicate
+
+        mockMvc.perform(get("/api/v1/employees/job-titles").param("search", "AAA"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(3)))
+                .andExpect(jsonPath("$[0]").value("AAA Architect"))
+                .andExpect(jsonPath("$[1]").value("AAA DevOps Engineer"))
+                .andExpect(jsonPath("$[2]").value("AAA Software Engineer"));
+    }
+
+    @Test
+    @DisplayName("should filter job titles case-insensitively and partially")
+    void shouldFilterJobTitlesCaseInsensitivelyAndPartially() throws Exception {
+        createDirectoryEmployee("EMP_JT_11", "Alice", "Smith", "alice.jt11@example.com", countryUS, "ZZZ Engineer Senior", null);
+        createDirectoryEmployee("EMP_JT_12", "Bob", "Smith", "bob.jt12@example.com", countryUS, "ZZZ Engineer Staff", null);
+        createDirectoryEmployee("EMP_JT_13", "Charlie", "Smith", "charlie.jt13@example.com", countryUS, "ZZZ Product Manager", null);
+
+        // search=zzz engineer matches ZZZ Engineer Senior and ZZZ Engineer Staff
+        mockMvc.perform(get("/api/v1/employees/job-titles").param("search", "zzz engineer"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(2)))
+                .andExpect(jsonPath("$[0]").value("ZZZ Engineer Senior"))
+                .andExpect(jsonPath("$[1]").value("ZZZ Engineer Staff"));
+
+        // uppercase search
+        mockMvc.perform(get("/api/v1/employees/job-titles").param("search", "ZZZ ENGINEER STAFF"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0]").value("ZZZ Engineer Staff"));
+
+        // no match
+        mockMvc.perform(get("/api/v1/employees/job-titles").param("search", "NonExistentJobRoleXYZ"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(0)));
+    }
+
+    @Test
+    @DisplayName("should enforce limit parameter on distinct job titles")
+    void shouldEnforceLimitOnJobTitles() throws Exception {
+        for (int i = 1; i <= 5; i++) {
+            createDirectoryEmployee("EMP_LIMIT_" + i, "Name" + i, "Last" + i, "limit" + i + "@example.com", countryUS, "BBB Role " + i, null);
+        }
+
+        mockMvc.perform(get("/api/v1/employees/job-titles").param("search", "BBB").param("limit", "3"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(3)))
+                .andExpect(jsonPath("$[0]").value("BBB Role 1"))
+                .andExpect(jsonPath("$[1]").value("BBB Role 2"))
+                .andExpect(jsonPath("$[2]").value("BBB Role 3"));
+
+        mockMvc.perform(get("/api/v1/employees/job-titles").param("search", "BBB").param("limit", "5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(5)));
+    }
+
+    @Test
+    @DisplayName("should exclude soft-deleted employees job titles from autocomplete unless shared")
+    void shouldExcludeSoftDeletedJobTitlesUnlessShared() throws Exception {
+        createDirectoryEmployee("EMP_ACTIVE_JT", "Active", "User", "active.jt@example.com", countryUS, "Custom Active Only Role", null);
+        createDirectoryEmployee("EMP_DELETED_JT", "Deleted", "User", "deleted.jt@example.com", countryUS, "Custom Ghost Only Role", Instant.now());
+
+        mockMvc.perform(get("/api/v1/employees/job-titles").param("search", "Custom"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0]").value("Custom Active Only Role"));
+    }
+
+    @Test
+    @DisplayName("should return 400 Bad Request for invalid job titles limit")
+    void shouldReturnBadRequestForInvalidJobTitlesLimit() throws Exception {
+        mockMvc.perform(get("/api/v1/employees/job-titles").param("limit", "0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value(containsString("Limit must not be less than one")));
+
+        mockMvc.perform(get("/api/v1/employees/job-titles").param("limit", "101"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value(containsString("Limit must not be greater than 100")));
+
+        mockMvc.perform(get("/api/v1/employees/job-titles").param("limit", "abc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value(containsString("Invalid parameter value for: limit")));
     }
 }
 

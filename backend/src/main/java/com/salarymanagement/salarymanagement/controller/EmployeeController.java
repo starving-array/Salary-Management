@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.net.URI;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -50,6 +51,14 @@ public class EmployeeController {
                 .buildAndExpand(response.getId())
                 .toUri();
         return ResponseEntity.created(location).body(response);
+    }
+
+    @GetMapping("/job-titles")
+    public ResponseEntity<List<String>> getJobTitles(
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "10") int limit) {
+        List<String> response = employeeService.getJobTitles(search, limit);
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{id}")

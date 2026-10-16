@@ -165,4 +165,20 @@ describe('EmployeeApiService', () => {
     expect(req.request.method).toBe('DELETE');
     req.flush(null, { status: 204, statusText: 'No Content' });
   });
+
+  it('should fetch distinct job titles with optional search and limit', () => {
+    const mockTitles = ['Software Engineer', 'Senior Software Engineer'];
+
+    service.getJobTitles('soft', 10).subscribe(titles => {
+      expect(titles).toEqual(mockTitles);
+    });
+
+    const req = httpMock.expectOne(request =>
+      request.url === `${baseUrl}/employees/job-titles` &&
+      request.params.get('search') === 'soft' &&
+      request.params.get('limit') === '10'
+    );
+    expect(req.request.method).toBe('GET');
+    req.flush(mockTitles);
+  });
 });

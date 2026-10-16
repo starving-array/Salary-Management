@@ -13,6 +13,7 @@ describe('EmployeesComponent', () => {
   let fixture: ComponentFixture<EmployeesComponent>;
   let employeeApiService: {
     getEmployees: ReturnType<typeof vi.fn>;
+    getJobTitles: ReturnType<typeof vi.fn>;
     createEmployee: ReturnType<typeof vi.fn>;
     updateEmployee: ReturnType<typeof vi.fn>;
     deleteEmployee: ReturnType<typeof vi.fn>;
@@ -56,6 +57,7 @@ describe('EmployeesComponent', () => {
   beforeEach(async () => {
     employeeApiService = {
       getEmployees: vi.fn().mockReturnValue(of(mockPageResponse)),
+      getJobTitles: vi.fn().mockReturnValue(of(['Software Engineer', 'Senior Software Engineer'])),
       createEmployee: vi.fn(),
       updateEmployee: vi.fn(),
       deleteEmployee: vi.fn()
@@ -291,6 +293,195 @@ describe('EmployeesComponent', () => {
         page: 0,
         size: 20
       });
+    });
+  });
+
+  describe('Job Title Autocomplete', () => {
+    it('should not query autocomplete suggestions if typed input is less than 2 characters', () => {
+      vi.useFakeTimers();
+      fixture.detectChanges();
+      employeeApiService.getJobTitles.mockClear();
+
+      component.jobTitleControl.setValue('a');
+      vi.advanceTimersByTime(350);
+
+      expect(employeeApiService.getJobTitles).not.toHaveBeenCalled();
+      expect(component.showJobTitleSuggestions).toBe(false);
+      expect(component.jobTitleSuggestions).toEqual([]);
+      vi.useRealTimers();
+    });
+
+    it('should debounce for 300ms and query suggestions matching job titles (max 10)', () => {
+      vi.useFakeTimers();
+      fixture.detectChanges();
+      employeeApiService.getJobTitles.mockClear();
+
+      const mockTitles = ['Software Engineer', 'Senior Software Engineer', 'Staff Software Engineer'];
+      employeeApiService.getJobTitles.mockReturnValue(of(mockTitles));
+
+      component.jobTitleControl.setValue('soft');
+      vi.advanceTimersByTime(150);
+      expect(employeeApiService.getJobTitles).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(150);
+      expect(employeeApiService.getJobTitles).toHaveBeenCalledWith('soft', 10);
+      expect(component.showJobTitleSuggestions).toBe(true);
+      expect(component.jobTitleSuggestions).toEqual(mockTitles);
+      expect(component.activeSuggestionIndex).toBe(-1);
+      vi.useRealTimers();
+    });
+
+    it('should display suggestions in listbox with accessible attributes', () => {
+      vi.useFakeTimers();
+      fixture.detectChanges();
+      const mockTitles = ['Software Engineer', 'Senior Software Engineer'];
+      employeeApiService.getJobTitles.mockReturnValue(of(mockTitles));
+
+      component.jobTitleControl.setValue('soft');
+      vi.advanceTimersByTime(300);
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      const input = compiled.querySelector('#job-title-filter') as HTMLInputElement;
+      expect(input.getAttribute('role')).toBe('combobox');
+      expect(input.getAttribute('aria-autocomplete')).toBe('list');
+      expect(input.getAttribute('aria-expanded')).toBe('true');
+      expect(input.getAttribute('aria-controls')).toBe('job-title-listbox');
+
+      const listbox = compiled.querySelector('#job-title-listbox');
+      expect(listbox).not.toBeNull();
+      expect(listbox?.getAttribute('role')).toBe('listbox');
+
+      const items = compiled.querySelectorAll('.autocomplete-item');
+      expect(items.length).toBe(2);
+      expect(items[0].textContent?.trim()).toBe('Software Engineer');
+      expect(items[1].textContent?.trim()).toBe('Senior Software Engineer');
+      expect(items[0].getAttribute('role')).toBe('option');
+      vi.useRealTimers();
+    });
+
+    it('should display clear empty-suggestions state when no titles match', () => {
+      vi.useFakeTimers();
+      fixture.detectChanges();
+      employeeApiService.getJobTitles.mockReturnValue(of([]));
+
+      component.jobTitleControl.setValue('unknownrole');
+      vi.advanceTimersByTime(300);
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      const emptyItem = compiled.querySelector('.autocomplete-empty');
+      expect(emptyItem).not.toBeNull();
+      expect(emptyItem?.textContent?.trim()).toBe('No matching job titles');
+      vi.useRealTimers();
+    });
+
+    it('should support keyboard navigation: ArrowDown, ArrowUp, Enter, and Escape', () => {
+      vi.useFakeTimers();
+      fixture.detectChanges();
+      const mockTitles = ['Software Engineer', 'Senior Software Engineer'];
+      employeeApiService.getJobTitles.mockReturnValue(of(mockTitles));
+
+      component.jobTitleControl.setValue('soft');
+      vi.advanceTimersByTime(300);
+      fixture.detectChanges();
+
+      expect(component.showJobTitleSuggestions).toBe(true);
+      expect(component.activeSuggestionIndex).toBe(-1);
+
+      // ArrowDown -> first item (index 0)
+      component.onJobTitleKeyDown(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
+      expect(component.activeSuggestionIndex).toBe(0);
+      expect(component.activeSuggestionId).toBe('job-title-option-0');
+
+      // ArrowDown -> second item (index 1)
+      component.onJobTitleKeyDown(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
+      expect(component.activeSuggestionIndex).toBe(1);
+      expect(component.activeSuggestionId).toBe('job-title-option-1');
+
+      // ArrowDown wraps to index 0
+      component.onJobTitleKeyDown(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
+      expect(component.activeSuggestionIndex).toBe(0);
+
+      // ArrowUp wraps back to index 1
+      component.onJobTitleKeyDown(new KeyboardEvent('keydown', { key: 'ArrowUp' }));
+      expect(component.activeSuggestionIndex).toBe(1);
+
+      // Enter selects active suggestion
+      employeeApiService.getEmployees.mockClear();
+      component.onJobTitleKeyDown(new KeyboardEvent('keydown', { key: 'Enter' }));
+
+      expect(component.jobTitleControl.value).toBe('Senior Software Engineer');
+      expect(component.showJobTitleSuggestions).toBe(false);
+      expect(employeeApiService.getEmployees).toHaveBeenCalledWith(expect.objectContaining({
+        jobTitle: 'Senior Software Engineer',
+        page: 0
+      }));
+
+      // Escape closes suggestions
+      component.jobTitleSuggestions = mockTitles;
+      component.showJobTitleSuggestions = true;
+      component.onJobTitleKeyDown(new KeyboardEvent('keydown', { key: 'Escape' }));
+      expect(component.showJobTitleSuggestions).toBe(false);
+
+      vi.useRealTimers();
+    });
+
+    it('should select suggestion by mouse click and apply exact filter', () => {
+      vi.useFakeTimers();
+      fixture.detectChanges();
+      const mockTitles = ['DevOps Engineer', 'Software Engineer'];
+      employeeApiService.getJobTitles.mockReturnValue(of(mockTitles));
+
+      component.jobTitleControl.setValue('eng');
+      vi.advanceTimersByTime(300);
+      fixture.detectChanges();
+
+      employeeApiService.getEmployees.mockClear();
+      employeeApiService.getJobTitles.mockClear();
+
+      component.selectJobTitleSuggestion('DevOps Engineer');
+
+      expect(component.jobTitleControl.value).toBe('DevOps Engineer');
+      expect(component.showJobTitleSuggestions).toBe(false);
+      // Ensure exact filter applied and reloads directory
+      expect(employeeApiService.getEmployees).toHaveBeenCalledWith(expect.objectContaining({
+        jobTitle: 'DevOps Engineer',
+        page: 0
+      }));
+      // Verify no duplicate autocomplete search request is sent
+      vi.advanceTimersByTime(350);
+      expect(employeeApiService.getJobTitles).not.toHaveBeenCalled();
+
+      vi.useRealTimers();
+    });
+
+    it('should clear suggestions and title filter when input is cleared', () => {
+      vi.useFakeTimers();
+      fixture.detectChanges();
+      component.jobTitleSuggestions = ['Software Engineer'];
+      component.showJobTitleSuggestions = true;
+
+      component.jobTitleControl.setValue('');
+      vi.advanceTimersByTime(300);
+
+      expect(component.showJobTitleSuggestions).toBe(false);
+      expect(component.jobTitleSuggestions).toEqual([]);
+      expect(component.filterState$.getValue().jobTitle).toBe('');
+      vi.useRealTimers();
+    });
+
+    it('should hide suggestions on blur after timeout', () => {
+      vi.useFakeTimers();
+      component.jobTitleSuggestions = ['Software Engineer'];
+      component.showJobTitleSuggestions = true;
+
+      component.onJobTitleBlur();
+      expect(component.showJobTitleSuggestions).toBe(true);
+
+      vi.advanceTimersByTime(250);
+      expect(component.showJobTitleSuggestions).toBe(false);
+      vi.useRealTimers();
     });
   });
 

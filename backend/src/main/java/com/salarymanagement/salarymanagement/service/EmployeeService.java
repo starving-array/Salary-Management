@@ -72,6 +72,23 @@ public class EmployeeService {
         );
     }
 
+    @Transactional(readOnly = true)
+    public List<String> getJobTitles(String search, int limit) {
+        if (limit < 1) {
+            throw new IllegalArgumentException("Limit must not be less than one");
+        }
+        if (limit > 100) {
+            throw new IllegalArgumentException("Limit must not be greater than 100");
+        }
+
+        Pageable pageable = PageRequest.of(0, limit);
+        if (search != null && !search.trim().isBlank()) {
+            String pattern = "%" + search.trim().toLowerCase() + "%";
+            return employeeRepository.findDistinctJobTitlesMatching(pattern, pageable);
+        }
+        return employeeRepository.findDistinctJobTitles(pageable);
+    }
+
     @Transactional
     public EmployeeResponse createEmployee(CreateEmployeeRequest request) {
         if (request.getTerminatedAt() != null && request.getTerminatedAt().isBefore(request.getJoinedAt())) {

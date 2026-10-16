@@ -578,5 +578,45 @@ class EmployeeServiceTests {
         );
         assertEquals("Page size must not be greater than 100", ex.getMessage());
     }
+
+    @Test
+    @DisplayName("should retrieve distinct job titles when search is null or blank")
+    void shouldRetrieveDistinctJobTitlesWhenSearchIsNullOrBlank() {
+        when(employeeRepository.findDistinctJobTitles(any(Pageable.class)))
+                .thenReturn(List.of("Architect", "Developer"));
+
+        List<String> titlesNull = employeeService.getJobTitles(null, 10);
+        assertEquals(2, titlesNull.size());
+        assertEquals("Architect", titlesNull.get(0));
+
+        List<String> titlesBlank = employeeService.getJobTitles("   ", 10);
+        assertEquals(2, titlesBlank.size());
+        verify(employeeRepository, never()).findDistinctJobTitlesMatching(any(), any());
+    }
+
+    @Test
+    @DisplayName("should retrieve matching job titles when search term is provided")
+    void shouldRetrieveMatchingJobTitlesWhenSearchProvided() {
+        when(employeeRepository.findDistinctJobTitlesMatching(any(), any(Pageable.class)))
+                .thenReturn(List.of("Software Engineer", "Staff Software Engineer"));
+
+        List<String> result = employeeService.getJobTitles("software", 10);
+        assertEquals(2, result.size());
+        verify(employeeRepository).findDistinctJobTitlesMatching(org.mockito.ArgumentMatchers.eq("%software%"), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("should throw IllegalArgumentException when job title limit is invalid")
+    void shouldThrowExceptionWhenJobTitleLimitIsInvalid() {
+        IllegalArgumentException exLow = assertThrows(IllegalArgumentException.class, () ->
+                employeeService.getJobTitles(null, 0)
+        );
+        assertEquals("Limit must not be less than one", exLow.getMessage());
+
+        IllegalArgumentException exHigh = assertThrows(IllegalArgumentException.class, () ->
+                employeeService.getJobTitles(null, 101)
+        );
+        assertEquals("Limit must not be greater than 100", exHigh.getMessage());
+    }
 }
 
