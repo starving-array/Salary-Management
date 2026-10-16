@@ -1,5 +1,5 @@
 import { CommonModule, DatePipe } from '@angular/common';
-import { Component, DestroyRef, HostListener, inject, OnDestroy, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, DestroyRef, HostListener, inject, OnDestroy, OnInit } from '@angular/core';
 import {
   AbstractControl,
   FormBuilder,
@@ -57,6 +57,7 @@ export class EmployeesComponent implements OnInit, OnDestroy {
   private readonly employeeApiService = inject(EmployeeApiService);
   private readonly apiErrorService = inject(ApiErrorService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   readonly supportedCountries = SUPPORTED_COUNTRIES;
   readonly pageSizeOptions = [10, 20, 50, 100];
@@ -198,6 +199,7 @@ export class EmployeesComponent implements OnInit, OnDestroy {
       tap(() => {
         this.loading = true;
         this.directoryError = null;
+        this.cdr.markForCheck();
       }),
       // switchMap cancels prior in-flight requests and avoids stale overwrites
       switchMap(([filters]) =>
@@ -215,17 +217,28 @@ export class EmployeesComponent implements OnInit, OnDestroy {
               hasNext: false
             };
             this.loading = false;
+            this.cdr.markForCheck();
             return of(null);
           })
         )
       )
-    ).subscribe(response => {
-      if (response) {
-        this.employees = response.content;
-        this.pageInfo = response;
-        this.directoryError = null;
+    ).subscribe({
+      next: (response) => {
+        if (response) {
+          this.employees = response.content;
+          this.pageInfo = response;
+          this.directoryError = null;
+        }
+        this.loading = false;
+        this.cdr.markForCheck();
+      },
+      error: (err: unknown) => {
+        const parsed = this.apiErrorService.parseError(err);
+        this.directoryError = parsed.message || 'Unable to load employee directory.';
+        this.employees = [];
+        this.loading = false;
+        this.cdr.markForCheck();
       }
-      this.loading = false;
     });
   }
 
@@ -337,12 +350,14 @@ export class EmployeesComponent implements OnInit, OnDestroy {
         this.showCreateModal = false;
         this.setNotification(`Employee ${created.firstName} ${created.lastName} (${created.employeeNumber}) created successfully.`);
         this.reload();
+        this.cdr.markForCheck();
       },
       error: (err: unknown) => {
         this.savingCreate = false;
         const parsed: ApiError = this.apiErrorService.parseError(err);
         this.createFormError = parsed.message || 'Failed to create employee.';
         this.createFormDetails = parsed.details || [];
+        this.cdr.markForCheck();
       }
     });
   }
@@ -408,12 +423,14 @@ export class EmployeesComponent implements OnInit, OnDestroy {
         this.setNotification(`Employee ${updated.firstName} ${updated.lastName} updated successfully.`);
         this.selectedEmployee = null;
         this.reload();
+        this.cdr.markForCheck();
       },
       error: (err: unknown) => {
         this.savingEdit = false;
         const parsed: ApiError = this.apiErrorService.parseError(err);
         this.editFormError = parsed.message || 'Failed to update employee.';
         this.editFormDetails = parsed.details || [];
+        this.cdr.markForCheck();
       }
     });
   }
@@ -459,6 +476,7 @@ export class EmployeesComponent implements OnInit, OnDestroy {
         } else {
           this.reload();
         }
+        this.cdr.markForCheck();
       },
       error: (err: unknown) => {
         this.deleting = false;
@@ -472,6 +490,7 @@ export class EmployeesComponent implements OnInit, OnDestroy {
         } else {
           this.deleteError = parsed.message || 'Failed to delete employee.';
         }
+        this.cdr.markForCheck();
       }
     });
   }
@@ -485,7 +504,9 @@ export class EmployeesComponent implements OnInit, OnDestroy {
     }
     this.notificationTimer = setTimeout(() => {
       this.notificationMessage = null;
+      this.cdr.markForCheck();
     }, 5000);
+    this.cdr.markForCheck();
   }
 
   dismissNotification(): void {
@@ -493,6 +514,7 @@ export class EmployeesComponent implements OnInit, OnDestroy {
     if (this.notificationTimer) {
       clearTimeout(this.notificationTimer);
     }
+    this.cdr.markForCheck();
   }
 
   getCountryName(countryCode: string): string {

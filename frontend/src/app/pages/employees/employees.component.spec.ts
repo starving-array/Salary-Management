@@ -1,6 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { ApiErrorService } from '../../core/services/api-error.service';
 import { CompensationApiService } from '../../core/services/compensation-api.service';
 import { EmployeeApiService } from '../../core/services/employee-api.service';
@@ -152,6 +152,54 @@ describe('EmployeesComponent', () => {
 
       expect(component.directoryError).toBeNull();
       expect(component.employees.length).toBe(2);
+    });
+
+    it('should show loading indicator while API request is in-flight and clear it upon successful response', () => {
+      const response$ = new Subject<EmployeePageResponse>();
+      employeeApiService.getEmployees.mockReturnValue(response$);
+
+      const asyncFixture = TestBed.createComponent(EmployeesComponent);
+      asyncFixture.detectChanges();
+
+      expect(asyncFixture.componentInstance.loading).toBe(true);
+      const compiled = asyncFixture.nativeElement as HTMLElement;
+      expect(compiled.querySelector('.loading-container')).toBeTruthy();
+      expect(compiled.querySelector('.loading-text')?.textContent).toContain('Loading employee records...');
+
+      // Emit successful paginated response
+      response$.next(mockPageResponse);
+      response$.complete();
+      asyncFixture.detectChanges();
+
+      expect(asyncFixture.componentInstance.loading).toBe(false);
+      expect(compiled.querySelector('.loading-container')).toBeNull();
+      expect(compiled.querySelectorAll('tbody tr').length).toBe(2);
+      expect(asyncFixture.componentInstance.employees.length).toBe(2);
+    });
+
+    it('should clear loading indicator and display error banner when API returns an error', () => {
+      const response$ = new Subject<EmployeePageResponse>();
+      employeeApiService.getEmployees.mockReturnValue(response$);
+
+      const asyncFixture = TestBed.createComponent(EmployeesComponent);
+      asyncFixture.detectChanges();
+
+      expect(asyncFixture.componentInstance.loading).toBe(true);
+      const compiled = asyncFixture.nativeElement as HTMLElement;
+      expect(compiled.querySelector('.loading-container')).toBeTruthy();
+
+      // Emit error
+      response$.error(new HttpErrorResponse({
+        status: 503,
+        statusText: 'Service Unavailable',
+        error: { message: 'Service temporarily unavailable' }
+      }));
+      asyncFixture.detectChanges();
+
+      expect(asyncFixture.componentInstance.loading).toBe(false);
+      expect(compiled.querySelector('.loading-container')).toBeNull();
+      expect(asyncFixture.componentInstance.directoryError).toBe('Service temporarily unavailable');
+      expect(compiled.querySelector('.error-banner')?.textContent).toContain('Service temporarily unavailable');
     });
   });
 
