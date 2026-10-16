@@ -1,0 +1,47 @@
+<div class="autocomplete-wrapper">
+  <input
+    [id]="inputId"
+    type="text"
+    class="form-control"
+    [placeholder]="placeholder"
+    [formControl]="control"
+    autocomplete="off"
+    role="combobox"
+    aria-autocomplete="list"
+    [attr.aria-label]="ariaLabel"
+    [attr.aria-expanded]="showJobTitleSuggestions"
+    [attr.aria-controls]="showJobTitleSuggestions ? listboxId : null"
+    [attr.aria-activedescendant]="activeSuggestionId"
+    (keydown)="onJobTitleKeyDown($event)"
+    (blur)="onJobTitleBlur()"
+    (focus)="onJobTitleFocus()"
+  />
+  @if (showJobTitleSuggestions) {
+    <ul
+      [id]="listboxId"
+      class="autocomplete-dropdown"
+      role="listbox"
+      aria-label="Job title suggestions"
+    >
+      @if (loadingJobTitleSuggestions) {
+        <li class="autocomplete-loading" role="status">Loading suggestions...</li>
+      } @else if (jobTitleSuggestions.length === 0) {
+        <li class="autocomplete-empty" role="status" aria-live="polite">No matching job titles</li>
+      } @else {
+        @for (suggestion of jobTitleSuggestions; track suggestion; let idx = $index) {
+          <li
+            [id]="optionIdPrefix + idx"
+            role="option"
+            class="autocomplete-item"
+            [class.active]="idx === activeSuggestionIndex"
+            [attr.aria-selected]="idx === activeSuggestionIndex"
+            (mousedown)="$event.preventDefault()"
+            (click)="selectJobTitleSuggestion(suggestion)"
+          >
+            {{ suggestion }}
+          </li>
+        }
+      }
+    </ul>
+  }
+</div>

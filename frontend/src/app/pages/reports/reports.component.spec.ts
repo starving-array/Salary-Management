@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
+import { EmployeeApiService } from '../../core/services/employee-api.service';
 import { ReportingApiService } from '../../core/services/reporting-api.service';
 import { ApiError } from '../../models/api-error.model';
 import {
@@ -14,6 +15,9 @@ describe('ReportsComponent', () => {
   let reportingApiService: {
     getCountrySalarySummary: ReturnType<typeof vi.fn>;
     getSalaryByJobTitle: ReturnType<typeof vi.fn>;
+  };
+  let employeeApiService: {
+    getJobTitles: ReturnType<typeof vi.fn>;
   };
 
   const mockSummaryUS: CountrySalarySummary = {
@@ -86,11 +90,15 @@ describe('ReportsComponent', () => {
       getCountrySalarySummary: vi.fn().mockReturnValue(of(mockSummaryUS)),
       getSalaryByJobTitle: vi.fn().mockReturnValue(of(mockJobTitleSummaryUS))
     };
+    employeeApiService = {
+      getJobTitles: vi.fn().mockReturnValue(of(['Software Engineer', 'Senior Software Engineer']))
+    };
 
     await TestBed.configureTestingModule({
       imports: [ReportsComponent],
       providers: [
-        { provide: ReportingApiService, useValue: reportingApiService }
+        { provide: ReportingApiService, useValue: reportingApiService },
+        { provide: EmployeeApiService, useValue: employeeApiService }
       ]
     }).compileComponents();
 
@@ -105,7 +113,7 @@ describe('ReportsComponent', () => {
   it('should load initial reports with default country US and today date', () => {
     fixture.detectChanges();
 
-    expect(reportingApiService.getCountrySalarySummary).toHaveBeenCalledWith('US', expect.any(String));
+    expect(reportingApiService.getCountrySalarySummary).toHaveBeenCalledWith('US', expect.any(String), undefined);
     expect(reportingApiService.getSalaryByJobTitle).toHaveBeenCalledWith('US', expect.any(String), undefined);
     expect(component.summary).toEqual(mockSummaryUS);
     expect(component.jobTitleSummary).toEqual(mockJobTitleSummaryUS);
@@ -164,7 +172,7 @@ describe('ReportsComponent', () => {
     component.countryControl.setValue('GB');
     fixture.detectChanges();
 
-    expect(reportingApiService.getCountrySalarySummary).toHaveBeenCalledWith('GB', expect.any(String));
+    expect(reportingApiService.getCountrySalarySummary).toHaveBeenCalledWith('GB', expect.any(String), undefined);
     expect(reportingApiService.getSalaryByJobTitle).toHaveBeenCalledWith('GB', expect.any(String), undefined);
   });
 
@@ -176,7 +184,7 @@ describe('ReportsComponent', () => {
     component.asOfDateControl.setValue('2025-06-01');
     fixture.detectChanges();
 
-    expect(reportingApiService.getCountrySalarySummary).toHaveBeenCalledWith('US', '2025-06-01');
+    expect(reportingApiService.getCountrySalarySummary).toHaveBeenCalledWith('US', '2025-06-01', undefined);
     expect(reportingApiService.getSalaryByJobTitle).toHaveBeenCalledWith('US', '2025-06-01', undefined);
   });
 
@@ -333,7 +341,7 @@ describe('ReportsComponent', () => {
 
     expect(component.countryControl.value).toBe('US');
     expect(component.jobTitleFilterControl.value).toBe('');
-    expect(reportingApiService.getCountrySalarySummary).toHaveBeenCalledWith('US', expect.any(String));
+    expect(reportingApiService.getCountrySalarySummary).toHaveBeenCalledWith('US', expect.any(String), undefined);
     expect(reportingApiService.getSalaryByJobTitle).toHaveBeenCalledWith('US', expect.any(String), undefined);
   });
 
@@ -360,6 +368,141 @@ describe('ReportsComponent', () => {
     const tableHeaders = compiled.querySelectorAll('table.data-table th');
     tableHeaders.forEach(th => {
       expect(th.getAttribute('scope')).toBe('col');
+    });
+  });
+
+  describe('Zoneless Async Loading and Error Handling', () => {
+    it('should show loading spinners while API requests are in-flight and render data when responses arrive', () => {
+      const summarySubject = new Subject<CountrySalarySummary>();
+      const jobTitlesSubject = new Subject<CountryJobTitleSalarySummary>();
+
+      reportingApiService.getCountrySalarySummary.mockReturnValue(summarySubject.asObservable());
+      reportingApiService.getSalaryByJobTitle.mockReturnValue(jobTitlesSubject.asObservable());
+
+      const asyncFixture = TestBed.createComponent(ReportsComponent);
+      asyncFixture.detectChanges();
+
+      expect(asyncFixture.componentInstance.loadingSummary).toBe(true);
+      expect(asyncFixture.componentInstance.loadingJobTitles).toBe(true);
+
+      const compiled = asyncFixture.nativeElement as HTMLElement;
+      expect(compiled.querySelectorAll('.loading-container').length).toBe(2);
+      expect(compiled.querySelector('.stat-cards-grid')).toBeNull();
+      expect(compiled.querySelector('.data-table')).toBeNull();
+
+      // Emit responses
+      summarySubject.next(mockSummaryUS);
+      summarySubject.complete();
+      jobTitlesSubject.next(mockJobTitleSummaryUS);
+      jobTitlesSubject.complete();
+      asyncFixture.detectChanges();
+
+      expect(asyncFixture.componentInstance.loadingSummary).toBe(false);
+      expect(asyncFixture.componentInstance.loadingJobTitles).toBe(false);
+      expect(compiled.querySelectorAll('.loading-container').length).toBe(0);
+      expect(compiled.querySelector('.stat-cards-grid')).toBeTruthy();
+      expect(compiled.querySelector('.data-table')).toBeTruthy();
+      expect(compiled.querySelectorAll('.job-title-row').length).toBe(2);
+    });
+
+    it('should clear loading indicators and display error banners when API requests fail', () => {
+      const summarySubject = new Subject<CountrySalarySummary>();
+      const jobTitlesSubject = new Subject<CountryJobTitleSalarySummary>();
+
+      reportingApiService.getCountrySalarySummary.mockReturnValue(summarySubject.asObservable());
+      reportingApiService.getSalaryByJobTitle.mockReturnValue(jobTitlesSubject.asObservable());
+
+      const asyncFixture = TestBed.createComponent(ReportsComponent);
+      asyncFixture.detectChanges();
+
+      expect(asyncFixture.componentInstance.loadingSummary).toBe(true);
+      expect(asyncFixture.componentInstance.loadingJobTitles).toBe(true);
+
+      const error: ApiError = {
+        timestamp: '2026-10-16T00:00:00Z',
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Database query timeout'
+      };
+
+      summarySubject.error(error);
+      jobTitlesSubject.error(error);
+      asyncFixture.detectChanges();
+
+      expect(asyncFixture.componentInstance.loadingSummary).toBe(false);
+      expect(asyncFixture.componentInstance.loadingJobTitles).toBe(false);
+      expect(asyncFixture.componentInstance.summaryError).toBe('Database query timeout');
+      expect(asyncFixture.componentInstance.jobTitlesError).toBe('Database query timeout');
+
+      const compiled = asyncFixture.nativeElement as HTMLElement;
+      expect(compiled.querySelectorAll('.loading-container').length).toBe(0);
+      expect(compiled.querySelectorAll('.error-banner').length).toBe(2);
+    });
+  });
+
+  describe('Job Title Autocomplete Integration in Reports', () => {
+    it('should query suggestions and display autocomplete dropdown when typing in job title input', () => {
+      vi.useFakeTimers();
+      fixture.detectChanges();
+
+      component.jobTitleFilterControl.setValue('soft');
+      vi.advanceTimersByTime(300);
+      fixture.detectChanges();
+
+      expect(employeeApiService.getJobTitles).toHaveBeenCalledWith('soft', 10);
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      const items = compiled.querySelectorAll('.autocomplete-item');
+      expect(items.length).toBe(2);
+      expect(items[0].textContent?.trim()).toBe('Software Engineer');
+      expect(items[1].textContent?.trim()).toBe('Senior Software Engineer');
+      vi.useRealTimers();
+    });
+
+    it('should filter salary-by-job-title and country-salary-summary when an autocomplete suggestion is selected', () => {
+      vi.useFakeTimers();
+      fixture.detectChanges();
+
+      component.jobTitleFilterControl.setValue('soft');
+      vi.advanceTimersByTime(300);
+      fixture.detectChanges();
+
+      reportingApiService.getSalaryByJobTitle.mockClear();
+      reportingApiService.getCountrySalarySummary.mockClear();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      const firstItem = compiled.querySelector('.autocomplete-item') as HTMLElement;
+      expect(firstItem).toBeTruthy();
+      firstItem.click();
+      fixture.detectChanges();
+
+      expect(component.jobTitleFilterControl.value).toBe('Software Engineer');
+      expect(reportingApiService.getSalaryByJobTitle).toHaveBeenCalledWith('US', expect.any(String), 'Software Engineer');
+      expect(reportingApiService.getCountrySalarySummary).toHaveBeenCalledWith('US', expect.any(String), 'Software Engineer');
+      vi.useRealTimers();
+    });
+
+    it('should restore unfiltered salary report and summary when job title selection is cleared', () => {
+      vi.useFakeTimers();
+      fixture.detectChanges();
+
+      // First filter by a job title
+      component.jobTitleFilterControl.setValue('DevOps Engineer');
+      vi.advanceTimersByTime(300);
+      fixture.detectChanges();
+
+      reportingApiService.getSalaryByJobTitle.mockClear();
+      reportingApiService.getCountrySalarySummary.mockClear();
+
+      // Clear the filter
+      component.clearJobTitleFilter();
+      vi.advanceTimersByTime(300);
+      fixture.detectChanges();
+
+      expect(component.jobTitleFilterControl.value).toBe('');
+      expect(reportingApiService.getSalaryByJobTitle).toHaveBeenCalledWith('US', expect.any(String), undefined);
+      expect(reportingApiService.getCountrySalarySummary).toHaveBeenCalledWith('US', expect.any(String), undefined);
+      vi.useRealTimers();
     });
   });
 });

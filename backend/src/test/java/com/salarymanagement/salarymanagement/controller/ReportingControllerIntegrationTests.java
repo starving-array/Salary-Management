@@ -139,6 +139,37 @@ class ReportingControllerIntegrationTests {
     }
 
     @Test
+    @DisplayName("should filter salary summary by job title when jobTitle param is provided")
+    void shouldFilterSalarySummaryByJobTitle() throws Exception {
+        Employee e1 = createEmployee("REP_JT_01", "repjt1@example.com", countryUS, "Software Engineer", LocalDate.of(2024, 1, 1), null, null);
+        Employee e2 = createEmployee("REP_JT_02", "repjt2@example.com", countryUS, "Software Engineer", LocalDate.of(2024, 1, 1), null, null);
+        Employee e3 = createEmployee("REP_JT_03", "repjt3@example.com", countryUS, "Product Manager", LocalDate.of(2024, 1, 1), null, null);
+
+        createCompensation(e1, new BigDecimal("80000.00"), LocalDate.of(2024, 1, 1), null);
+        createCompensation(e2, new BigDecimal("120000.00"), LocalDate.of(2024, 1, 1), null);
+        createCompensation(e3, new BigDecimal("150000.00"), LocalDate.of(2024, 1, 1), null);
+
+        // Filtered by Software Engineer
+        mockMvc.perform(get("/api/v1/reports/countries/TU/salary-summary")
+                        .param("asOfDate", "2025-01-01")
+                        .param("jobTitle", "Software Engineer"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.eligibleEmployeeCount").value(2))
+                .andExpect(jsonPath("$.minSalary").value(80000.00))
+                .andExpect(jsonPath("$.maxSalary").value(120000.00))
+                .andExpect(jsonPath("$.averageSalary").value(100000.00));
+
+        // Unfiltered (country-wide)
+        mockMvc.perform(get("/api/v1/reports/countries/TU/salary-summary")
+                        .param("asOfDate", "2025-01-01"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.eligibleEmployeeCount").value(3))
+                .andExpect(jsonPath("$.minSalary").value(80000.00))
+                .andExpect(jsonPath("$.maxSalary").value(150000.00))
+                .andExpect(jsonPath("$.averageSalary").value(116666.67));
+    }
+
+    @Test
     @DisplayName("should respect effective date boundaries with inclusive start and exclusive end")
     void shouldRespectEffectiveDateBoundaries() throws Exception {
         Employee e1 = createEmployee("REP_BOUND_01", "repbound@example.com", countryUS, "Engineer", LocalDate.of(2025, 1, 1), null, null);

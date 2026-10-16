@@ -34,6 +34,24 @@ public interface CompensationRecordRepository extends JpaRepository<Compensation
             @Param("countryCode") String countryCode,
             @Param("asOfDate") LocalDate asOfDate);
 
+    @Query("SELECT COUNT(c.id) AS employeeCount, " +
+           "MIN(c.annualSalary) AS minSalary, " +
+           "MAX(c.annualSalary) AS maxSalary, " +
+           "AVG(c.annualSalary) AS averageSalary " +
+           "FROM CompensationRecord c " +
+           "JOIN c.employee e " +
+           "WHERE e.country.code = :countryCode " +
+           "AND LOWER(e.jobTitle) = LOWER(:jobTitle) " +
+           "AND e.joinedAt <= :asOfDate " +
+           "AND e.deletedAt IS NULL " +
+           "AND (e.terminatedAt IS NULL OR e.terminatedAt > :asOfDate) " +
+           "AND c.effectiveFrom <= :asOfDate " +
+           "AND (c.effectiveTo IS NULL OR c.effectiveTo > :asOfDate)")
+    CountrySalarySummaryProjection getCountrySalarySummaryByJobTitle(
+            @Param("countryCode") String countryCode,
+            @Param("asOfDate") LocalDate asOfDate,
+            @Param("jobTitle") String jobTitle);
+
     @Query("SELECT e.jobTitle AS jobTitle, " +
            "COUNT(c.id) AS employeeCount, " +
            "AVG(c.annualSalary) AS averageSalary " +

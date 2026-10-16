@@ -19,10 +19,17 @@ export class ReportingApiService {
     @Inject(API_BASE_URL) private readonly baseUrl: string
   ) {}
 
-  getCountrySalarySummary(countryCode: string, asOfDate?: string): Observable<CountrySalarySummary> {
+  getCountrySalarySummary(
+    countryCode: string,
+    asOfDate?: string,
+    jobTitle?: string
+  ): Observable<CountrySalarySummary> {
     let params = new HttpParams();
     if (asOfDate) {
       params = params.set('asOfDate', asOfDate);
+    }
+    if (jobTitle && jobTitle.trim().length > 0) {
+      params = params.set('jobTitle', jobTitle.trim());
     }
 
     return this.http.get<CountrySalarySummary>(

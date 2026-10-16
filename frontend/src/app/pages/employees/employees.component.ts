@@ -1,5 +1,5 @@
 import { CommonModule, DatePipe } from '@angular/common';
-import { ChangeDetectorRef, Component, DestroyRef, HostListener, inject, OnDestroy, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, DestroyRef, HostListener, inject, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import {
   AbstractControl,
   FormBuilder,
@@ -24,6 +24,7 @@ import {
   UpdateEmployeeRequest
 } from '../../models/employee.model';
 import { CompensationModalComponent } from './compensation-modal/compensation-modal.component';
+import { JobTitleAutocompleteComponent } from '../../shared/components/job-title-autocomplete/job-title-autocomplete.component';
 
 export function dateOrderValidator(control: AbstractControl): ValidationErrors | null {
   const joinedAt = control.get('joinedAt')?.value;
@@ -48,7 +49,7 @@ export function editTerminationValidator(getJoinedAt: () => string | null | unde
 @Component({
   selector: 'app-employees',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, DatePipe, CompensationModalComponent],
+  imports: [CommonModule, ReactiveFormsModule, DatePipe, CompensationModalComponent, JobTitleAutocompleteComponent],
   templateUrl: './employees.component.html',
   styleUrl: './employees.component.css'
 })
@@ -59,6 +60,8 @@ export class EmployeesComponent implements OnInit, OnDestroy {
   private readonly destroyRef = inject(DestroyRef);
   private readonly cdr = inject(ChangeDetectorRef);
 
+  @ViewChild(JobTitleAutocompleteComponent) autocompleteComponent?: JobTitleAutocompleteComponent;
+
   readonly supportedCountries = SUPPORTED_COUNTRIES;
   readonly pageSizeOptions = [10, 20, 50, 100];
 
@@ -67,12 +70,39 @@ export class EmployeesComponent implements OnInit, OnDestroy {
   readonly countryControl = new FormControl('', { nonNullable: true });
   readonly jobTitleControl = new FormControl('', { nonNullable: true });
 
-  // Job Title Autocomplete state
-  jobTitleSuggestions: string[] = [];
-  showJobTitleSuggestions = false;
-  loadingJobTitleSuggestions = false;
-  activeSuggestionIndex = -1;
+  // Delegated Job Title Autocomplete state with backward-compatible fallbacks
+  private _fallbackJobTitleSuggestions: string[] = [];
+  private _fallbackShowJobTitleSuggestions = false;
+  private _fallbackActiveSuggestionIndex = -1;
   private jobTitleBlurTimer: ReturnType<typeof setTimeout> | null = null;
+
+  get jobTitleSuggestions(): string[] {
+    return this.autocompleteComponent ? this.autocompleteComponent.jobTitleSuggestions : this._fallbackJobTitleSuggestions;
+  }
+  set jobTitleSuggestions(val: string[]) {
+    this._fallbackJobTitleSuggestions = val;
+    if (this.autocompleteComponent) this.autocompleteComponent.jobTitleSuggestions = val;
+  }
+  get showJobTitleSuggestions(): boolean {
+    return this.autocompleteComponent ? this.autocompleteComponent.showJobTitleSuggestions : this._fallbackShowJobTitleSuggestions;
+  }
+  set showJobTitleSuggestions(val: boolean) {
+    this._fallbackShowJobTitleSuggestions = val;
+    if (this.autocompleteComponent) this.autocompleteComponent.showJobTitleSuggestions = val;
+  }
+  get loadingJobTitleSuggestions(): boolean {
+    return this.autocompleteComponent?.loadingJobTitleSuggestions ?? false;
+  }
+  get activeSuggestionIndex(): number {
+    return this.autocompleteComponent ? this.autocompleteComponent.activeSuggestionIndex : this._fallbackActiveSuggestionIndex;
+  }
+  set activeSuggestionIndex(val: number) {
+    this._fallbackActiveSuggestionIndex = val;
+    if (this.autocompleteComponent) this.autocompleteComponent.activeSuggestionIndex = val;
+  }
+  get activeSuggestionId(): string | null {
+    return this.autocompleteComponent?.activeSuggestionId ?? (this.showJobTitleSuggestions && this.activeSuggestionIndex >= 0 ? `job-title-option-${this.activeSuggestionIndex}` : null);
+  }
 
   // Filter state & reload trigger
   readonly filterState$ = new BehaviorSubject<EmployeeFilterParams>({
@@ -148,87 +178,54 @@ export class EmployeesComponent implements OnInit, OnDestroy {
     this.selectedCompensationEmployee = null;
   }
 
-  get activeSuggestionId(): string | null {
-    if (this.showJobTitleSuggestions && this.activeSuggestionIndex >= 0) {
-      return `job-title-option-${this.activeSuggestionIndex}`;
-    }
-    return null;
-  }
-
   selectJobTitleSuggestion(suggestion: string): void {
-    this.jobTitleControl.setValue(suggestion, { emitEvent: false });
-    this.closeJobTitleSuggestions();
-    this.updateFilter({ jobTitle: suggestion, page: 0 });
-    this.cdr.markForCheck();
+    if (this.autocompleteComponent) {
+      this.autocompleteComponent.selectJobTitleSuggestion(suggestion);
+    } else {
+      this.jobTitleControl.setValue(suggestion, { emitEvent: false });
+      this.closeJobTitleSuggestions();
+      this.updateFilter({ jobTitle: suggestion, page: 0 });
+      this.cdr.markForCheck();
+    }
   }
 
   closeJobTitleSuggestions(): void {
-    this.showJobTitleSuggestions = false;
-    this.jobTitleSuggestions = [];
-    this.activeSuggestionIndex = -1;
-    this.loadingJobTitleSuggestions = false;
+    this._fallbackShowJobTitleSuggestions = false;
+    this._fallbackJobTitleSuggestions = [];
+    this._fallbackActiveSuggestionIndex = -1;
+    this.autocompleteComponent?.closeJobTitleSuggestions();
     this.cdr.markForCheck();
   }
 
   onJobTitleKeyDown(event: KeyboardEvent): void {
-    if (!this.showJobTitleSuggestions) {
-      if (event.key === 'ArrowDown' && this.jobTitleControl.value.trim().length >= 2) {
-        this.showJobTitleSuggestions = true;
-        this.cdr.markForCheck();
-      }
-      return;
-    }
-
-    switch (event.key) {
-      case 'ArrowDown':
-        event.preventDefault();
-        if (this.jobTitleSuggestions.length > 0) {
-          this.activeSuggestionIndex = (this.activeSuggestionIndex + 1) % this.jobTitleSuggestions.length;
-          this.cdr.markForCheck();
-        }
-        break;
-
-      case 'ArrowUp':
-        event.preventDefault();
-        if (this.jobTitleSuggestions.length > 0) {
-          this.activeSuggestionIndex = this.activeSuggestionIndex <= 0
-            ? this.jobTitleSuggestions.length - 1
-            : this.activeSuggestionIndex - 1;
-          this.cdr.markForCheck();
-        }
-        break;
-
-      case 'Enter':
-        if (this.activeSuggestionIndex >= 0 && this.activeSuggestionIndex < this.jobTitleSuggestions.length) {
-          event.preventDefault();
-          this.selectJobTitleSuggestion(this.jobTitleSuggestions[this.activeSuggestionIndex]);
-        }
-        break;
-
-      case 'Escape':
-        event.preventDefault();
-        event.stopPropagation();
-        this.closeJobTitleSuggestions();
-        break;
+    if (this.autocompleteComponent) {
+      this.autocompleteComponent.onJobTitleKeyDown(event);
+    } else if (event.key === 'Escape') {
+      this.closeJobTitleSuggestions();
     }
   }
 
   onJobTitleFocus(): void {
-    if (this.jobTitleControl.value.trim().length >= 2 && this.jobTitleSuggestions.length > 0) {
-      this.showJobTitleSuggestions = true;
-      this.cdr.markForCheck();
-    }
+    this.autocompleteComponent?.onJobTitleFocus();
   }
 
   onJobTitleBlur(): void {
-    if (this.jobTitleBlurTimer) {
-      clearTimeout(this.jobTitleBlurTimer);
+    if (this.autocompleteComponent) {
+      this.autocompleteComponent.onJobTitleBlur();
+    } else {
+      if (this.jobTitleBlurTimer) {
+        clearTimeout(this.jobTitleBlurTimer);
+      }
+      this.jobTitleBlurTimer = setTimeout(() => {
+        this._fallbackShowJobTitleSuggestions = false;
+        this._fallbackActiveSuggestionIndex = -1;
+        this.cdr.markForCheck();
+      }, 200);
     }
-    this.jobTitleBlurTimer = setTimeout(() => {
-      this.showJobTitleSuggestions = false;
-      this.activeSuggestionIndex = -1;
-      this.cdr.markForCheck();
-    }, 200);
+  }
+
+  onJobTitleSelected(suggestion: string): void {
+    this.updateFilter({ jobTitle: suggestion, page: 0 });
   }
 
   ngOnInit(): void {
@@ -278,7 +275,7 @@ export class EmployeesComponent implements OnInit, OnDestroy {
       this.updateFilter({ countryCode: value.trim(), page: 0 });
     });
 
-    // Debounce job title filter input (300ms) and retrieve autocomplete suggestions
+    // Debounce job title filter input (300ms) to update directory filter
     this.jobTitleControl.valueChanges.pipe(
       debounceTime(300),
       distinctUntilChanged(),
@@ -286,33 +283,6 @@ export class EmployeesComponent implements OnInit, OnDestroy {
     ).subscribe(value => {
       const trimmed = value.trim();
       this.updateFilter({ jobTitle: trimmed, page: 0 });
-
-      if (trimmed.length >= 2) {
-        this.loadingJobTitleSuggestions = true;
-        this.showJobTitleSuggestions = true;
-        this.cdr.markForCheck();
-
-        this.employeeApiService.getJobTitles(trimmed, 10).subscribe({
-          next: (titles) => {
-            if (this.jobTitleControl.value.trim() === trimmed) {
-              this.jobTitleSuggestions = titles;
-              this.loadingJobTitleSuggestions = false;
-              this.activeSuggestionIndex = -1;
-              this.cdr.markForCheck();
-            }
-          },
-          error: () => {
-            if (this.jobTitleControl.value.trim() === trimmed) {
-              this.jobTitleSuggestions = [];
-              this.loadingJobTitleSuggestions = false;
-              this.activeSuggestionIndex = -1;
-              this.cdr.markForCheck();
-            }
-          }
-        });
-      } else {
-        this.closeJobTitleSuggestions();
-      }
     });
   }
 

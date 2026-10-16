@@ -26,8 +26,9 @@ public class ReportingController {
     @GetMapping("/countries/{countryCode}/salary-summary")
     public ResponseEntity<CountrySalarySummaryResponse> getCountrySalarySummary(
             @PathVariable String countryCode,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOfDate) {
-        CountrySalarySummaryResponse response = reportingService.getCountrySalarySummary(countryCode, asOfDate);
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOfDate,
+            @RequestParam(required = false) String jobTitle) {
+        CountrySalarySummaryResponse response = reportingService.getCountrySalarySummary(countryCode, asOfDate, jobTitle);
         return ResponseEntity.ok(response);
     }
 

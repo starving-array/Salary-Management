@@ -79,52 +79,12 @@
       <!-- Job Title filter with debounced autocomplete -->
       <div class="filter-field">
         <label for="job-title-filter" class="filter-label">Job Title</label>
-        <div class="autocomplete-wrapper">
-          <input
-            id="job-title-filter"
-            type="text"
-            class="form-control"
-            placeholder="Filter by job title..."
-            [formControl]="jobTitleControl"
-            autocomplete="off"
-            role="combobox"
-            aria-autocomplete="list"
-            [attr.aria-expanded]="showJobTitleSuggestions"
-            [attr.aria-controls]="showJobTitleSuggestions ? 'job-title-listbox' : null"
-            [attr.aria-activedescendant]="activeSuggestionId"
-            (keydown)="onJobTitleKeyDown($event)"
-            (blur)="onJobTitleBlur()"
-            (focus)="onJobTitleFocus()"
-          />
-          @if (showJobTitleSuggestions) {
-            <ul
-              id="job-title-listbox"
-              class="autocomplete-dropdown"
-              role="listbox"
-              aria-label="Job title suggestions"
-            >
-              @if (loadingJobTitleSuggestions) {
-                <li class="autocomplete-loading" role="status">Loading suggestions...</li>
-              } @else if (jobTitleSuggestions.length === 0) {
-                <li class="autocomplete-empty" role="status" aria-live="polite">No matching job titles</li>
-              } @else {
-                @for (suggestion of jobTitleSuggestions; track suggestion; let idx = $index) {
-                  <li
-                    [id]="'job-title-option-' + idx"
-                    role="option"
-                    class="autocomplete-item"
-                    [class.active]="idx === activeSuggestionIndex"
-                    [attr.aria-selected]="idx === activeSuggestionIndex"
-                    (mousedown)="$event.preventDefault()"
-                    (click)="selectJobTitleSuggestion(suggestion)"
-                  >
-                    {{ suggestion }}
-                  </li>
-                }
-              }
-            </ul>
-          }
-        </div>
+        <app-job-title-autocomplete
+          [control]="jobTitleControl"
+          inputId="job-title-filter"
+          placeholder="Filter by job title..."
+          (selected)="onJobTitleSelected($event)"
+        ></app-job-title-autocomplete>
       </div>
 
       <!-- Reset Filters Button -->

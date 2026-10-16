@@ -31,6 +31,11 @@ public class ReportingService {
 
     @Transactional(readOnly = true)
     public CountrySalarySummaryResponse getCountrySalarySummary(String countryCode, LocalDate asOfDate) {
+        return getCountrySalarySummary(countryCode, asOfDate, null);
+    }
+
+    @Transactional(readOnly = true)
+    public CountrySalarySummaryResponse getCountrySalarySummary(String countryCode, LocalDate asOfDate, String jobTitle) {
         if (countryCode == null || countryCode.isBlank()) {
             throw new ResourceNotFoundException("Country not found with code: " + countryCode);
         }
@@ -40,7 +45,12 @@ public class ReportingService {
 
         LocalDate effectiveDate = (asOfDate != null) ? asOfDate : LocalDate.now();
 
-        CountrySalarySummaryProjection projection = compensationRecordRepository.getCountrySalarySummary(country.getCode(), effectiveDate);
+        CountrySalarySummaryProjection projection;
+        if (jobTitle != null && !jobTitle.isBlank()) {
+            projection = compensationRecordRepository.getCountrySalarySummaryByJobTitle(country.getCode(), effectiveDate, jobTitle.trim());
+        } else {
+            projection = compensationRecordRepository.getCountrySalarySummary(country.getCode(), effectiveDate);
+        }
 
         if (projection == null || projection.getEmployeeCount() == null || projection.getEmployeeCount() == 0L) {
             return new CountrySalarySummaryResponse(

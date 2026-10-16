@@ -63,6 +63,17 @@ describe('ReportingApiService', () => {
     req.flush({});
   });
 
+  it('should fetch country salary summary with jobTitle filter', () => {
+    service.getCountrySalarySummary('US', '2025-06-01', 'Software Engineer').subscribe();
+
+    const req = httpMock.expectOne(
+      `${baseUrl}/reports/countries/US/salary-summary?asOfDate=2025-06-01&jobTitle=Software%20Engineer`
+    );
+    expect(req.request.method).toBe('GET');
+    expect(req.request.params.get('jobTitle')).toBe('Software Engineer');
+    req.flush({});
+  });
+
   it('should fetch grouped salary report by job title without requiring a specific job title filter', () => {
     const mockGroupedReport: CountryJobTitleSalarySummary = {
       countryCode: 'US',

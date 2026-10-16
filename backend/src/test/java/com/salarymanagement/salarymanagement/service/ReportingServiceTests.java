@@ -118,6 +118,47 @@ class ReportingServiceTests {
     }
 
     @Test
+    @DisplayName("should filter salary summary by job title when jobTitle is provided")
+    void shouldFilterSalarySummaryByJobTitleWhenJobTitleProvided() {
+        LocalDate asOfDate = LocalDate.of(2025, 6, 1);
+        CountrySalarySummaryProjection projection = mock(CountrySalarySummaryProjection.class);
+        when(projection.getEmployeeCount()).thenReturn(2L);
+        when(projection.getMinSalary()).thenReturn(new BigDecimal("70000.00"));
+        when(projection.getMaxSalary()).thenReturn(new BigDecimal("90000.00"));
+        when(projection.getAverageSalary()).thenReturn(80000.00);
+
+        when(countryRepository.findById("US")).thenReturn(Optional.of(countryUS));
+        when(compensationRecordRepository.getCountrySalarySummaryByJobTitle("US", asOfDate, "Software Engineer"))
+                .thenReturn(projection);
+
+        CountrySalarySummaryResponse response = reportingService.getCountrySalarySummary("US", asOfDate, "Software Engineer");
+
+        assertNotNull(response);
+        assertEquals(2L, response.getEligibleEmployeeCount());
+        assertEquals(new BigDecimal("70000.00"), response.getMinSalary());
+        assertEquals(new BigDecimal("90000.00"), response.getMaxSalary());
+        assertEquals(new BigDecimal("80000.00"), response.getAverageSalary());
+        verify(compensationRecordRepository).getCountrySalarySummaryByJobTitle("US", asOfDate, "Software Engineer");
+    }
+
+    @Test
+    @DisplayName("should use country-wide summary when jobTitle is blank")
+    void shouldUseCountryWideSummaryWhenJobTitleIsBlank() {
+        LocalDate asOfDate = LocalDate.of(2025, 6, 1);
+        CountrySalarySummaryProjection projection = mock(CountrySalarySummaryProjection.class);
+        when(projection.getEmployeeCount()).thenReturn(5L);
+
+        when(countryRepository.findById("US")).thenReturn(Optional.of(countryUS));
+        when(compensationRecordRepository.getCountrySalarySummary("US", asOfDate)).thenReturn(projection);
+
+        CountrySalarySummaryResponse response = reportingService.getCountrySalarySummary("US", asOfDate, "   ");
+
+        assertNotNull(response);
+        assertEquals(5L, response.getEligibleEmployeeCount());
+        verify(compensationRecordRepository).getCountrySalarySummary("US", asOfDate);
+    }
+
+    @Test
     @DisplayName("should throw ResourceNotFoundException when country is unknown")
     void shouldThrowResourceNotFoundExceptionWhenCountryUnknown() {
         when(countryRepository.findById("XX")).thenReturn(Optional.empty());

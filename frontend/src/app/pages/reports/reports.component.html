@@ -39,17 +39,16 @@
         />
       </div>
 
-      <!-- Job Title Filter -->
+      <!-- Job Title Filter with autocomplete -->
       <div class="filter-field search-field">
         <label for="report-job-title" class="filter-label">Job Title Filter (Optional)</label>
-        <input
-          id="report-job-title"
-          type="text"
-          class="form-control"
+        <app-job-title-autocomplete
+          [control]="jobTitleFilterControl"
+          inputId="report-job-title"
           placeholder="Filter by job title (e.g. Software Engineer)..."
-          [formControl]="jobTitleFilterControl"
-          aria-label="Filter by job title"
-        />
+          ariaLabel="Filter by job title"
+          (selected)="onJobTitleSelected($event)"
+        ></app-job-title-autocomplete>
       </div>
 
       <!-- Actions -->

@@ -1,5 +1,5 @@
 import { CommonModule, CurrencyPipe, DatePipe } from '@angular/common';
-import { Component, DestroyRef, inject, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, DestroyRef, inject, OnInit } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { debounceTime, distinctUntilChanged } from 'rxjs';
@@ -10,17 +10,19 @@ import {
   CountryJobTitleSalarySummary,
   CountrySalarySummary
 } from '../../models/reporting.model';
+import { JobTitleAutocompleteComponent } from '../../shared/components/job-title-autocomplete/job-title-autocomplete.component';
 
 @Component({
   selector: 'app-reports',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, DatePipe, CurrencyPipe],
+  imports: [CommonModule, ReactiveFormsModule, DatePipe, CurrencyPipe, JobTitleAutocompleteComponent],
   templateUrl: './reports.component.html',
   styleUrl: './reports.component.css'
 })
 export class ReportsComponent implements OnInit {
   private readonly reportingApiService = inject(ReportingApiService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   readonly supportedCountries = SUPPORTED_COUNTRIES;
 
@@ -63,7 +65,7 @@ export class ReportsComponent implements OnInit {
         this.loadReports();
       });
 
-    // Re-fetch job titles breakdown when job title filter changes (debounced)
+    // Re-fetch reports when job title filter changes (debounced)
     this.jobTitleFilterControl.valueChanges
       .pipe(
         debounceTime(300),
@@ -71,7 +73,7 @@ export class ReportsComponent implements OnInit {
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe(() => {
-        this.loadJobTitlesReport();
+        this.loadReports();
       });
   }
 
@@ -86,20 +88,24 @@ export class ReportsComponent implements OnInit {
       return;
     }
     const asOfDate = this.asOfDateControl.value?.trim() || undefined;
+    const jobTitle = this.jobTitleFilterControl.value?.trim() || undefined;
 
     this.loadingSummary = true;
     this.summaryError = null;
+    this.cdr.markForCheck();
 
-    this.reportingApiService.getCountrySalarySummary(countryCode, asOfDate)
+    this.reportingApiService.getCountrySalarySummary(countryCode, asOfDate, jobTitle)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (data) => {
           this.summary = data;
           this.loadingSummary = false;
+          this.cdr.markForCheck();
         },
         error: (err: ApiError) => {
           this.loadingSummary = false;
           this.summaryError = err?.message || 'Failed to load country salary summary.';
+          this.cdr.markForCheck();
         }
       });
   }
@@ -114,6 +120,7 @@ export class ReportsComponent implements OnInit {
 
     this.loadingJobTitles = true;
     this.jobTitlesError = null;
+    this.cdr.markForCheck();
 
     this.reportingApiService.getSalaryByJobTitle(countryCode, asOfDate, jobTitle)
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -121,10 +128,12 @@ export class ReportsComponent implements OnInit {
         next: (data) => {
           this.jobTitleSummary = data;
           this.loadingJobTitles = false;
+          this.cdr.markForCheck();
         },
         error: (err: ApiError) => {
           this.loadingJobTitles = false;
           this.jobTitlesError = err?.message || 'Failed to load job title salary report.';
+          this.cdr.markForCheck();
         }
       });
   }
@@ -134,10 +143,17 @@ export class ReportsComponent implements OnInit {
     this.asOfDateControl.setValue(this.getTodayDateString(), { emitEvent: false });
     this.jobTitleFilterControl.setValue('', { emitEvent: false });
     this.loadReports();
+    this.cdr.markForCheck();
   }
 
   clearJobTitleFilter(): void {
     this.jobTitleFilterControl.setValue('');
+    this.loadReports();
+    this.cdr.markForCheck();
+  }
+
+  onJobTitleSelected(jobTitle: string): void {
+    this.loadReports();
   }
 
   private getTodayDateString(): string {
