@@ -6,7 +6,6 @@ import com.salarymanagement.salarymanagement.entity.Employee;
 import com.salarymanagement.salarymanagement.repository.CompensationRecordRepository;
 import com.salarymanagement.salarymanagement.repository.CountryRepository;
 import com.salarymanagement.salarymanagement.repository.EmployeeRepository;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -50,16 +49,10 @@ class ReportingControllerIntegrationTests {
 
     @BeforeEach
     void setUp() {
-        countryUS = countryRepository.findById("US")
-                .orElseGet(() -> countryRepository.save(new Country("US", "United States", "USD")));
-        countryGB = countryRepository.findById("GB")
-                .orElseGet(() -> countryRepository.save(new Country("GB", "United Kingdom", "GBP")));
-    }
-
-    @AfterEach
-    void tearDown() {
-        compensationRecordRepository.deleteAll();
-        employeeRepository.deleteAll();
+        countryUS = countryRepository.findById("TU")
+                .orElseGet(() -> countryRepository.save(new Country("TU", "Test United States", "USD")));
+        countryGB = countryRepository.findById("TG")
+                .orElseGet(() -> countryRepository.save(new Country("TG", "Test United Kingdom", "GBP")));
     }
 
     private Employee createEmployee(String empNumber, String email, Country country, String jobTitle,
@@ -104,12 +97,12 @@ class ReportingControllerIntegrationTests {
         createCompensation(e2, new BigDecimal("80000.00"), LocalDate.of(2025, 1, 1), null);
         createCompensation(e3, new BigDecimal("100000.00"), LocalDate.of(2025, 1, 1), null);
 
-        mockMvc.perform(get("/api/v1/reports/countries/US/salary-summary")
+        mockMvc.perform(get("/api/v1/reports/countries/TU/salary-summary")
                         .param("asOfDate", "2025-06-01")
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.countryCode").value("US"))
-                .andExpect(jsonPath("$.countryName").value("United States"))
+                .andExpect(jsonPath("$.countryCode").value("TU"))
+                .andExpect(jsonPath("$.countryName").value("Test United States"))
                 .andExpect(jsonPath("$.currencyCode").value("USD"))
                 .andExpect(jsonPath("$.asOfDate").value("2025-06-01"))
                 .andExpect(jsonPath("$.eligibleEmployeeCount").value(3))
@@ -127,7 +120,7 @@ class ReportingControllerIntegrationTests {
         createCompensation(e1, new BigDecimal("70000.00"), LocalDate.of(2025, 1, 1), null);
 
         // Before salary change (as of 2024-06-01)
-        mockMvc.perform(get("/api/v1/reports/countries/US/salary-summary")
+        mockMvc.perform(get("/api/v1/reports/countries/TU/salary-summary")
                         .param("asOfDate", "2024-06-01"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.eligibleEmployeeCount").value(1))
@@ -136,7 +129,7 @@ class ReportingControllerIntegrationTests {
                 .andExpect(jsonPath("$.averageSalary").value(50000.00));
 
         // After salary change (as of 2025-06-01)
-        mockMvc.perform(get("/api/v1/reports/countries/US/salary-summary")
+        mockMvc.perform(get("/api/v1/reports/countries/TU/salary-summary")
                         .param("asOfDate", "2025-06-01"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.eligibleEmployeeCount").value(1))
@@ -154,7 +147,7 @@ class ReportingControllerIntegrationTests {
         createCompensation(e1, new BigDecimal("65000.00"), LocalDate.of(2025, 7, 1), null);
 
         // On 2025-07-01: period 1 has exclusive end (excluded), period 2 has inclusive start (included)
-        mockMvc.perform(get("/api/v1/reports/countries/US/salary-summary")
+        mockMvc.perform(get("/api/v1/reports/countries/TU/salary-summary")
                         .param("asOfDate", "2025-07-01"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.eligibleEmployeeCount").value(1))
@@ -177,14 +170,14 @@ class ReportingControllerIntegrationTests {
         createCompensation(deleted, new BigDecimal("90000.00"), LocalDate.of(2025, 1, 1), null);
 
         // On 2025-06-01: terminated on 2025-05-01 is excluded, deleted is excluded -> only active
-        mockMvc.perform(get("/api/v1/reports/countries/US/salary-summary")
+        mockMvc.perform(get("/api/v1/reports/countries/TU/salary-summary")
                         .param("asOfDate", "2025-06-01"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.eligibleEmployeeCount").value(1))
                 .andExpect(jsonPath("$.averageSalary").value(60000.00));
 
         // On 2025-04-01: terminatedAt (2025-05-01) is in future -> both active and terminated are eligible
-        mockMvc.perform(get("/api/v1/reports/countries/US/salary-summary")
+        mockMvc.perform(get("/api/v1/reports/countries/TU/salary-summary")
                         .param("asOfDate", "2025-04-01"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.eligibleEmployeeCount").value(2))
@@ -203,19 +196,19 @@ class ReportingControllerIntegrationTests {
         createCompensation(gbEmp, new BigDecimal("60000.00"), LocalDate.of(2025, 1, 1), null);
 
         // US report
-        mockMvc.perform(get("/api/v1/reports/countries/US/salary-summary")
+        mockMvc.perform(get("/api/v1/reports/countries/TU/salary-summary")
                         .param("asOfDate", "2025-06-01"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.countryCode").value("US"))
+                .andExpect(jsonPath("$.countryCode").value("TU"))
                 .andExpect(jsonPath("$.currencyCode").value("USD"))
                 .andExpect(jsonPath("$.eligibleEmployeeCount").value(1))
                 .andExpect(jsonPath("$.averageSalary").value(100000.00));
 
         // GB report
-        mockMvc.perform(get("/api/v1/reports/countries/GB/salary-summary")
+        mockMvc.perform(get("/api/v1/reports/countries/TG/salary-summary")
                         .param("asOfDate", "2025-06-01"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.countryCode").value("GB"))
+                .andExpect(jsonPath("$.countryCode").value("TG"))
                 .andExpect(jsonPath("$.currencyCode").value("GBP"))
                 .andExpect(jsonPath("$.eligibleEmployeeCount").value(1))
                 .andExpect(jsonPath("$.averageSalary").value(60000.00));
@@ -224,10 +217,10 @@ class ReportingControllerIntegrationTests {
     @Test
     @DisplayName("should return clear no-data result with null statistics when country has no eligible employees")
     void shouldReturnClearNoDataResultWhenCountryHasNoEmployees() throws Exception {
-        mockMvc.perform(get("/api/v1/reports/countries/US/salary-summary")
+        mockMvc.perform(get("/api/v1/reports/countries/TU/salary-summary")
                         .param("asOfDate", "2025-06-01"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.countryCode").value("US"))
+                .andExpect(jsonPath("$.countryCode").value("TU"))
                 .andExpect(jsonPath("$.eligibleEmployeeCount").value(0))
                 .andExpect(jsonPath("$.minSalary").value(nullValue()))
                 .andExpect(jsonPath("$.maxSalary").value(nullValue()))
@@ -249,7 +242,7 @@ class ReportingControllerIntegrationTests {
     @Test
     @DisplayName("should return 400 Bad Request when asOfDate is malformed")
     void shouldReturnBadRequestForMalformedDate() throws Exception {
-        mockMvc.perform(get("/api/v1/reports/countries/US/salary-summary")
+        mockMvc.perform(get("/api/v1/reports/countries/TU/salary-summary")
                         .param("asOfDate", "not-a-valid-date"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400));
@@ -266,11 +259,11 @@ class ReportingControllerIntegrationTests {
         createCompensation(e2, new BigDecimal("110000.00"), LocalDate.of(2025, 1, 1), null);
         createCompensation(e3, new BigDecimal("50000.00"), LocalDate.of(2025, 1, 1), null);
 
-        mockMvc.perform(get("/api/v1/reports/countries/US/salary-by-job-title")
+        mockMvc.perform(get("/api/v1/reports/countries/TU/salary-by-job-title")
                         .param("asOfDate", "2025-06-01"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.countryCode").value("US"))
-                .andExpect(jsonPath("$.countryName").value("United States"))
+                .andExpect(jsonPath("$.countryCode").value("TU"))
+                .andExpect(jsonPath("$.countryName").value("Test United States"))
                 .andExpect(jsonPath("$.currencyCode").value("USD"))
                 .andExpect(jsonPath("$.asOfDate").value("2025-06-01"))
                 .andExpect(jsonPath("$.totalEligibleEmployees").value(3))
@@ -292,7 +285,7 @@ class ReportingControllerIntegrationTests {
         createCompensation(e1, new BigDecimal("100000.00"), LocalDate.of(2025, 1, 1), null);
         createCompensation(e2, new BigDecimal("50000.00"), LocalDate.of(2025, 1, 1), null);
 
-        mockMvc.perform(get("/api/v1/reports/countries/US/salary-by-job-title")
+        mockMvc.perform(get("/api/v1/reports/countries/TU/salary-by-job-title")
                         .param("asOfDate", "2025-06-01")
                         .param("jobTitle", "Junior Engineer"))
                 .andExpect(status().isOk())
@@ -306,10 +299,10 @@ class ReportingControllerIntegrationTests {
     @Test
     @DisplayName("should return empty job titles and 0 total when country has no eligible employees")
     void shouldReturnEmptyJobTitlesWhenNoEmployees() throws Exception {
-        mockMvc.perform(get("/api/v1/reports/countries/US/salary-by-job-title")
+        mockMvc.perform(get("/api/v1/reports/countries/TU/salary-by-job-title")
                         .param("asOfDate", "2025-06-01"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.countryCode").value("US"))
+                .andExpect(jsonPath("$.countryCode").value("TU"))
                 .andExpect(jsonPath("$.totalEligibleEmployees").value(0))
                 .andExpect(jsonPath("$.jobTitles", hasSize(0)));
     }
@@ -320,7 +313,7 @@ class ReportingControllerIntegrationTests {
         Employee e1 = createEmployee("REP_DEF_01", "repdef@example.com", countryUS, "Dev", LocalDate.of(2020, 1, 1), null, null);
         createCompensation(e1, new BigDecimal("75000.00"), LocalDate.of(2020, 1, 1), null);
 
-        mockMvc.perform(get("/api/v1/reports/countries/US/salary-summary"))
+        mockMvc.perform(get("/api/v1/reports/countries/TU/salary-summary"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.asOfDate").value(LocalDate.now().toString()))
                 .andExpect(jsonPath("$.eligibleEmployeeCount").value(1))
